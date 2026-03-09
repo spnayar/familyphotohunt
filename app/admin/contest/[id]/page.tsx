@@ -159,8 +159,9 @@ export default function ContestAdminPage() {
   };
 
   const handleToggleContestClosed = async () => {
+    if (!contest) return;
     const isCurrentlyClosed = contest.status === 'voting' || contest.status === 'completed';
-    
+
     if (!isCurrentlyClosed) {
       // Opening the toggle - close the contest
       if (confirm('Are you sure you want to close this contest and start voting?\n\nOnce closed, participants will be able to vote on all submitted photos but cannot add new photos. This action can be reversed.')) {
