@@ -1,0 +1,98 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  isAdmin      Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  
+  participants Participant[]
+  createdContests Contest[] @relation("ContestCreator")
+}
+
+model Contest {
+  id           String        @id @default(cuid())
+  location     String
+  date         String        // Format: "YYYY-MM"
+  status       String        @default("draft") // 'draft' | 'active' | 'voting' | 'completed'
+  joinCode     String        @unique
+  creatorId    String?       // User who created the contest
+  createdAt    DateTime      @default(now())
+  
+  creator      User?         @relation("ContestCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  categories   Category[]
+  participants Participant[]
+  photos       Photo[]
+  votes        Vote[]
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  contestId  String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  
+  contest     Contest  @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  photos      Photo[]
+  votes       Vote[]
+}
+
+model Participant {
+  id         String    @id @default(cuid())
+  contestId  String
+  userId     String
+  name       String
+  email      String
+  phone      String?
+  createdAt  DateTime  @default(now())
+  
+  contest    Contest   @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  photos     Photo[]
+  votes      Vote[]    @relation("Voter")
+}
+
+model Photo {
+  id           String    @id @default(cuid())
+  contestId    String
+  categoryId   String
+  participantId String
+  url          String
+  fileName     String
+  rank         Int?
+  submitted    Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  
+  contest      Contest     @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  category     Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  participant  Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  votes        Vote[]
+}
+
+model Vote {
+  id         String    @id @default(cuid())
+  contestId  String
+  categoryId String
+  voterId    String    // Participant who voted
+  photoId    String
+  rank       Int       // 1 for 1st place, 2 for 2nd place
+  createdAt  DateTime  @default(now())
+  
+  contest    Contest     @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  category   Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  voter      Participant @relation("Voter", fields: [voterId], references: [id], onDelete: Cascade)
+  photo      Photo       @relation(fields: [photoId], references: [id], onDelete: Cascade)
+}

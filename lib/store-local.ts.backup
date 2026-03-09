@@ -1,0 +1,833 @@
+// Simple in-memory store (in production, this would be a database)
+// Using localStorage for persistence
+
+import { Contest, Category, Participant, Photo, Vote, User } from '@/types';
+
+const STORAGE_KEY = 'vacation-photo-contest-data';
+
+export interface AppData {
+  contests: Contest[];
+  photos: Photo[];
+  votes: Vote[];
+  users: User[];
+}
+
+let data: AppData = {
+  contests: [],
+  photos: [],
+  votes: [],
+  users: [],
+};
+
+// Helper function to generate a 4-digit alphanumeric code (defined early for migration)
+function generateJoinCodeForMigration(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 4; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+// Load from localStorage on init
+if (typeof window !== 'undefined') {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  console.log('Initial data load - localStorage exists:', !!stored);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      console.log('Initial data load - Parsed structure:', {
+        hasContests: !!parsed.contests,
+        contestsLength: parsed.contests?.length || 0,
+        hasPhotos: !!parsed.photos,
+        hasVotes: !!parsed.votes,
+        hasUsers: !!parsed.users,
+        allKeys: Object.keys(parsed)
+      });
+      
+      // Migrate old data structure
+      const existingCodes = new Set<string>();
+      data = {
+        contests: (parsed.contests || []).map((c: any) => {
+          let joinCode = c.joinCode;
+          if (!joinCode) {
+            // Generate unique join code
+            do {
+              joinCode = generateJoinCodeForMigration();
+            } while (existingCodes.has(joinCode));
+            existingCodes.add(joinCode);
+          }
+          return {
+            ...c,
+            joinCode,
+            participants: (c.participants || []).map((p: any) => ({
+              ...p,
+              userId: p.userId || `temp-${p.id}`, // Temporary userId for old participants
+            })),
+          };
+        }),
+        photos: parsed.photos || [],
+        votes: parsed.votes || [],
+        users: parsed.users || [],
+      };
+      
+      console.log('Initial data load - Loaded contests:', data.contests.length);
+      
+      // Save migrated data
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+          console.log('Initial data load - Migrated data saved');
+        } catch (e) {
+          console.error('Failed to save migrated data', e);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load stored data', e);
+      console.error('Raw stored data (first 500 chars):', stored?.substring(0, 500));
+    }
+  } else {
+    console.log('Initial data load - No data in localStorage, using empty structure');
+  }
+}
+
+function save() {
+  if (typeof window !== 'undefined') {
+    try {
+      // Deep clone to ensure we're saving the actual data structure
+      const dataToSave = {
+        contests: data.contests.map(contest => {
+          const contestToSave = {
+            ...contest,
+            joinCode: contest.joinCode, // Explicitly include joinCode
+            participants: contest.participants ? [...contest.participants] : [],
+            categories: contest.categories ? [...contest.categories] : []
+          };
+          // Verify joinCode is included
+          if (!contestToSave.joinCode) {
+            console.warn('WARNING: Contest missing joinCode!', contest);
+            contestToSave.joinCode = generateJoinCode();
+          }
+          return contestToSave;
+        }),
+        photos: [...data.photos],
+        votes: [...data.votes],
+        users: [...data.users]
+      };
+      
+      // Verify joinCodes before saving
+      const joinCodesInSave = dataToSave.contests.map(c => c.joinCode).filter(Boolean);
+      console.log('Saving contests with joinCodes:', joinCodesInSave);
+      console.log('Saving contests count:', dataToSave.contests.length);
+      console.log('Full dataToSave structure:', {
+        contestsCount: dataToSave.contests.length,
+        contests: dataToSave.contests.map(c => ({ id: c.id, location: c.location, joinCode: c.joinCode }))
+      });
+      
+      const jsonString = JSON.stringify(dataToSave);
+      localStorage.setItem(STORAGE_KEY, jsonString);
+      
+      // Immediately verify what was saved
+      const verifySaved = localStorage.getItem(STORAGE_KEY);
+      if (verifySaved) {
+        try {
+          const verifyParsed = JSON.parse(verifySaved);
+          console.log('Verification after save - Contests in localStorage:', verifyParsed.contests?.length || 0);
+          if (verifyParsed.contests?.length !== dataToSave.contests.length) {
+            console.error('ERROR: Contest count mismatch after save!', {
+              expected: dataToSave.contests.length,
+              actual: verifyParsed.contests?.length || 0
+            });
+          }
+        } catch (e) {
+          console.error('Failed to verify saved data', e);
+        }
+      }
+      
+      const totalParticipants = data.contests.reduce((sum, c) => sum + (c.participants?.length || 0), 0);
+      console.log('Data saved to localStorage:', {
+        contests: data.contests.length,
+        participants: totalParticipants,
+        photos: data.photos.length,
+        votes: data.votes.length
+      });
+      
+      // Log all join codes for debugging
+      const allJoinCodes: string[] = [];
+      data.contests.forEach(contest => {
+        if (contest.joinCode) allJoinCodes.push(contest.joinCode);
+      });
+      console.log('All join codes in saved data:', allJoinCodes);
+    } catch (e) {
+      console.error('Failed to save to localStorage:', e);
+    }
+  }
+}
+
+// Helper function to generate a 4-digit alphanumeric code
+function generateJoinCode(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 4; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  // Ensure uniqueness
+  const existingCodes = data.contests.map(c => c.joinCode);
+  if (existingCodes.includes(code)) {
+    return generateJoinCode(); // Recursively generate until unique
+  }
+  return code;
+}
+
+// Simple password hashing (for demo purposes - in production use proper hashing)
+async function hashPassword(password: string): Promise<string> {
+  // Simple hash using Web Crypto API
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Contest operations
+export function createContest(contest: Omit<Contest, 'id' | 'createdAt' | 'joinCode'>): Contest {
+  // Reload data first to ensure we have the latest
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        data = {
+          contests: parsed.contests || [],
+          photos: parsed.photos || [],
+          votes: parsed.votes || [],
+          users: parsed.users || [],
+        };
+      } catch (e) {
+        console.error('Failed to load data before creating contest', e);
+      }
+    }
+  }
+  
+  const joinCode = generateJoinCode();
+  const newContest: Contest = {
+    ...contest,
+    id: `contest-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    createdAt: new Date().toISOString(),
+    participants: contest.participants || [],
+    categories: contest.categories || [],
+    joinCode: joinCode,
+  };
+  console.log('Creating contest with joinCode:', joinCode);
+  console.log('Current contests before adding:', data.contests.length);
+  
+  // Ensure contests array exists
+  if (!data.contests) {
+    data.contests = [];
+  }
+  
+  data.contests.push(newContest);
+  console.log('Contests after adding:', data.contests.length);
+  
+  save();
+  
+  // Verify joinCode was saved
+  const verifyStored = localStorage.getItem(STORAGE_KEY);
+  if (verifyStored) {
+    try {
+      const verifyData = JSON.parse(verifyStored);
+      console.log('Verification - Contests in localStorage:', verifyData.contests?.length || 0);
+      const savedContest = verifyData.contests?.find((c: any) => c.id === newContest.id);
+      if (savedContest) {
+        console.log('Contest saved successfully with joinCode:', savedContest.joinCode);
+        if (savedContest.joinCode !== joinCode) {
+          console.error('WARNING: Join code mismatch! Generated:', joinCode, 'Saved:', savedContest.joinCode);
+        }
+      } else {
+        console.error('ERROR: Contest was not found in localStorage after save!');
+        console.error('Looking for contest ID:', newContest.id);
+        console.error('Available contest IDs:', verifyData.contests?.map((c: any) => c.id) || []);
+      }
+    } catch (e) {
+      console.error('Failed to verify saved contest', e);
+    }
+  } else {
+    console.error('ERROR: No data in localStorage after save!');
+  }
+  
+  return newContest;
+}
+
+export function getContest(id: string): Contest | undefined {
+  // Always reload from localStorage to get latest data
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        const freshData: AppData = JSON.parse(stored);
+        // Update in-memory data
+        data = freshData;
+        const contest = freshData.contests.find(c => c.id === id);
+        // Return a reference that's in the data array so modifications persist
+        if (contest) {
+          const index = data.contests.findIndex(c => c.id === id);
+          if (index !== -1) {
+            return data.contests[index];
+          }
+        }
+        return contest;
+      } catch (e) {
+        console.error('Failed to load contest from localStorage', e);
+      }
+    }
+  }
+  return data.contests.find(c => c.id === id);
+}
+
+export function getAllContests(): Contest[] {
+  // Always reload from localStorage to get latest data
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    console.log('getAllContests - localStorage data exists:', !!stored);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        console.log('getAllContests - Parsed data:', {
+          hasContests: !!parsed.contests,
+          contestsType: Array.isArray(parsed.contests) ? 'array' : typeof parsed.contests,
+          contestsLength: parsed.contests?.length || 0,
+          rawContests: parsed.contests
+        });
+        
+        // Ensure joinCode is preserved for all contests
+        const contests = (parsed.contests || []).map((c: any) => ({
+          ...c,
+          joinCode: c.joinCode || generateJoinCodeForMigration(), // Ensure joinCode exists
+        }));
+        
+        console.log('getAllContests - Processed contests:', contests.length, contests.map(c => ({
+          id: c.id,
+          location: c.location,
+          joinCode: c.joinCode
+        })));
+        
+        // Update data structure
+        data = {
+          contests,
+          photos: parsed.photos || [],
+          votes: parsed.votes || [],
+          users: parsed.users || [],
+        };
+        
+        return contests;
+      } catch (e) {
+        console.error('Failed to load contests from localStorage', e);
+        console.error('Raw stored data:', stored?.substring(0, 500));
+      }
+    } else {
+      console.warn('getAllContests - No data in localStorage!');
+    }
+  }
+  console.log('getAllContests - Returning in-memory data:', data.contests?.length || 0);
+  return data.contests || [];
+}
+
+export function updateContest(id: string, updates: Partial<Contest>): Contest | null {
+  // Reload to get latest
+  const contest = getContest(id);
+  if (!contest) return null;
+  
+  // Update the contest
+  Object.assign(contest, updates);
+  
+  // Update in data array
+  const index = data.contests.findIndex(c => c.id === id);
+  if (index !== -1) {
+    data.contests[index] = contest;
+  }
+  
+  save();
+  return contest;
+}
+
+export function deleteContest(id: string): boolean {
+  // Reload to get latest
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        data = JSON.parse(stored);
+      } catch (e) {
+        console.error('Failed to load data', e);
+      }
+    }
+  }
+
+  const contestIndex = data.contests.findIndex(c => c.id === id);
+  if (contestIndex === -1) {
+    return false;
+  }
+
+  const contest = data.contests[contestIndex];
+  
+  // Delete all photos associated with this contest
+  data.photos = data.photos.filter(p => p.contestId !== id);
+  
+  // Delete all votes associated with this contest
+  data.votes = data.votes.filter(v => v.contestId !== id);
+  
+  // Remove the contest
+  data.contests.splice(contestIndex, 1);
+  
+  save();
+  console.log(`Contest ${id} deleted along with associated photos and votes`);
+  return true;
+}
+
+// Category operations
+export function addCategory(contestId: string, category: Omit<Category, 'id' | 'contestId' | 'createdAt'>): Category {
+  const newCategory: Category = {
+    ...category,
+    id: `category-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    contestId,
+    createdAt: new Date().toISOString(),
+  };
+  // Reload data first
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        data = JSON.parse(stored);
+      } catch (e) {
+        console.error('Failed to load data', e);
+      }
+    }
+  }
+  
+  const contestIndex = data.contests.findIndex(c => c.id === contestId);
+  if (contestIndex === -1) {
+    return newCategory;
+  }
+  
+  const contest = data.contests[contestIndex];
+  if (!contest.categories) {
+    contest.categories = [];
+  }
+  contest.categories.push(newCategory);
+  data.contests[contestIndex] = contest;
+  save();
+  
+  return newCategory;
+}
+
+export function updateCategory(contestId: string, categoryId: string, updates: Partial<Category>): Category | null {
+  const contest = getContest(contestId);
+  if (contest) {
+    const category = contest.categories.find(c => c.id === categoryId);
+    if (category) {
+      Object.assign(category, updates);
+      save();
+      return category;
+    }
+  }
+  return null;
+}
+
+export function deleteCategory(contestId: string, categoryId: string): boolean {
+  const contest = getContest(contestId);
+  if (contest) {
+    contest.categories = contest.categories.filter(c => c.id !== categoryId);
+    save();
+    return true;
+  }
+  return false;
+}
+
+// User operations
+export async function registerUser(email: string, password: string, name: string): Promise<User> {
+  // Reload data to get latest
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        data = JSON.parse(stored);
+      } catch (e) {
+        console.error('Failed to load data', e);
+      }
+    }
+  }
+
+  // Check if user already exists
+  const existingUser = data.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  if (existingUser) {
+    throw new Error('User with this email already exists');
+  }
+
+  const passwordHash = await hashPassword(password);
+  const newUser: User = {
+    id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    email: email.toLowerCase(),
+    passwordHash,
+    name,
+    createdAt: new Date().toISOString(),
+  };
+
+  data.users.push(newUser);
+  save();
+  return newUser;
+}
+
+export async function loginUser(email: string, password: string): Promise<User | null> {
+  // Reload data to get latest
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        data = JSON.parse(stored);
+      } catch (e) {
+        console.error('Failed to load data', e);
+      }
+    }
+  }
+
+  const user = data.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  if (!user) {
+    return null;
+  }
+
+  const passwordHash = await hashPassword(password);
+  if (user.passwordHash === passwordHash) {
+    return user;
+  }
+
+  return null;
+}
+
+export function getUser(id: string): User | undefined {
+  // Reload data to get latest
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        data = JSON.parse(stored);
+      } catch (e) {
+        console.error('Failed to load data', e);
+      }
+    }
+  }
+
+  return data.users.find(u => u.id === id);
+}
+
+export function getUserByEmail(email: string): User | undefined {
+  // Reload data to get latest
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        data = JSON.parse(stored);
+      } catch (e) {
+        console.error('Failed to load data', e);
+      }
+    }
+  }
+
+  return data.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+}
+
+// Join contest with join code
+export async function joinContestWithCode(userId: string, joinCode: string): Promise<Participant> {
+  // Use getAllContests to ensure we get the latest data with proper loading
+  const allContests = getAllContests();
+  console.log('Loaded contests from getAllContests:', allContests.length);
+  console.log('Contests with join codes:', allContests.map(c => ({
+    id: c.id,
+    location: c.location,
+    joinCode: c.joinCode
+  })));
+
+  const normalizedCode = joinCode.toUpperCase().trim();
+  
+  // Find contest by join code
+  const contest = allContests.find(c => {
+    const storedCode = (c.joinCode || '').toUpperCase().trim();
+    return storedCode === normalizedCode;
+  });
+  
+  if (!contest) {
+    const availableCodes = allContests.map(c => c.joinCode).filter(Boolean);
+    console.error('Join code not found. Entered:', normalizedCode);
+    console.error('Available codes:', availableCodes);
+    console.error('All contests:', allContests.map(c => ({ id: c.id, location: c.location, joinCode: c.joinCode })));
+    throw new Error(`Invalid join code: "${normalizedCode}". ${availableCodes.length > 0 ? `Available codes: ${availableCodes.join(', ')}` : 'No contests found. Please make sure a contest has been created.'}`);
+  }
+  
+  // Update in-memory data to match
+  data.contests = allContests;
+
+  const user = getUser(userId);
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Check if user is already a participant
+  const existingParticipant = contest.participants.find(p => p.userId === userId);
+  if (existingParticipant) {
+    throw new Error('You are already a participant in this contest');
+  }
+
+  const newParticipant: Participant = {
+    id: `participant-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    contestId: contest.id,
+    userId: user.id,
+    name: user.name,
+    email: user.email,
+    createdAt: new Date().toISOString(),
+  };
+
+  const contestIndex = data.contests.findIndex(c => c.id === contest.id);
+  if (contestIndex === -1) {
+    throw new Error('Contest not found');
+  }
+
+  if (!data.contests[contestIndex].participants) {
+    data.contests[contestIndex].participants = [];
+  }
+
+  data.contests[contestIndex].participants.push(newParticipant);
+  save();
+
+  return newParticipant;
+}
+
+export function getParticipantByUserId(userId: string, contestId: string): Participant | undefined {
+  // Reload data to get latest
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        data = JSON.parse(stored);
+      } catch (e) {
+        console.error('Failed to load data', e);
+      }
+    }
+  }
+
+  const contest = data.contests.find(c => c.id === contestId);
+  if (!contest) {
+    return undefined;
+  }
+
+  return contest.participants.find(p => p.userId === userId);
+}
+
+export function getContestsForUser(userId: string): Contest[] {
+  // Reload data to get latest
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        data = JSON.parse(stored);
+      } catch (e) {
+        console.error('Failed to load data', e);
+      }
+    }
+  }
+
+  return data.contests.filter(contest => 
+    contest.participants.some(p => p.userId === userId)
+  );
+}
+
+// Participant operations
+export function addParticipant(contestId: string, participant: Omit<Participant, 'id' | 'contestId' | 'createdAt'>): Participant {
+  const newParticipant: Participant = {
+    ...participant,
+    id: `participant-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    contestId,
+    createdAt: new Date().toISOString(),
+  };
+  
+  // Reload data to get latest
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        data = JSON.parse(stored);
+      } catch (e) {
+        console.error('Failed to load data', e);
+      }
+    }
+  }
+  
+  // Find contest in data array
+  const contestIndex = data.contests.findIndex(c => c.id === contestId);
+  if (contestIndex === -1) {
+    throw new Error('Contest not found');
+  }
+  
+  const contest = data.contests[contestIndex];
+  
+  // Ensure participants array exists
+  if (!contest.participants) {
+    contest.participants = [];
+  }
+  
+  // Add participant
+  contest.participants.push(newParticipant);
+  
+  // Update the contest in the data array
+  data.contests[contestIndex] = contest;
+  
+  // Save to localStorage
+  save();
+  
+  // Verify the save worked by reading back
+  const verifyStored = localStorage.getItem(STORAGE_KEY);
+  if (verifyStored) {
+    const verifyData = JSON.parse(verifyStored);
+    const verifyContest = verifyData.contests?.find((c: Contest) => c.id === contestId);
+    if (verifyContest) {
+      const verifyParticipant = verifyContest.participants?.find((p: Participant) => p.id === newParticipant.id);
+      if (!verifyParticipant) {
+        console.error('CRITICAL: Participant was not saved to localStorage!');
+      } else {
+        console.log('Participant verified in localStorage:', {
+          name: verifyParticipant.name,
+          userId: verifyParticipant.userId,
+          contestId: verifyParticipant.contestId
+        });
+      }
+    }
+  }
+  
+  console.log('Participant added:', {
+    name: newParticipant.name,
+    userId: newParticipant.userId,
+    contestId: newParticipant.contestId,
+    totalParticipants: contest.participants.length
+  });
+  
+  return newParticipant;
+}
+
+export function getParticipant(id: string): Participant | undefined {
+  // Reload from localStorage to get latest
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        const freshData: AppData = JSON.parse(stored);
+        data = freshData;
+        for (const contest of freshData.contests || []) {
+          const participant = contest.participants?.find(p => p.id === id);
+          if (participant) return participant;
+        }
+      } catch (e) {
+        console.error('Failed to load participant from localStorage', e);
+      }
+    }
+  }
+  
+  // Fallback to in-memory data
+  for (const contest of data.contests) {
+    const participant = contest.participants.find(p => p.id === id);
+    if (participant) return participant;
+  }
+  return undefined;
+}
+
+export function deleteParticipant(contestId: string, participantId: string): boolean {
+  const contest = getContest(contestId);
+  if (contest) {
+    contest.participants = contest.participants.filter(p => p.id !== participantId);
+    // Also delete all photos and votes from this participant
+    data.photos = data.photos.filter(p => p.participantId !== participantId);
+    data.votes = data.votes.filter(v => v.voterId !== participantId);
+    save();
+    return true;
+  }
+  return false;
+}
+
+// Photo operations
+export function addPhoto(photo: Omit<Photo, 'id' | 'createdAt'>): Photo {
+  const newPhoto: Photo = {
+    ...photo,
+    id: `photo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    createdAt: new Date().toISOString(),
+  };
+  data.photos.push(newPhoto);
+  save();
+  return newPhoto;
+}
+
+export function getPhotosByParticipant(participantId: string): Photo[] {
+  return data.photos.filter(p => p.participantId === participantId);
+}
+
+export function getPhotosByCategory(categoryId: string): Photo[] {
+  return data.photos.filter(p => p.categoryId === categoryId);
+}
+
+export function getPhotosByParticipantAndCategory(participantId: string, categoryId: string): Photo[] {
+  return data.photos.filter(p => p.participantId === participantId && p.categoryId === categoryId);
+}
+
+export function updatePhoto(id: string, updates: Partial<Photo>): Photo | null {
+  const index = data.photos.findIndex(p => p.id === id);
+  if (index === -1) return null;
+  data.photos[index] = { ...data.photos[index], ...updates };
+  save();
+  return data.photos[index];
+}
+
+export function deletePhoto(id: string): boolean {
+  const index = data.photos.findIndex(p => p.id === id);
+  if (index === -1) return false;
+  data.photos.splice(index, 1);
+  save();
+  return true;
+}
+
+// Vote operations
+export function addVote(vote: Omit<Vote, 'id' | 'createdAt'>): Vote {
+  // Remove existing vote from this voter for this category and rank
+  data.votes = data.votes.filter(
+    v => !(v.voterId === vote.voterId && v.categoryId === vote.categoryId && v.rank === vote.rank)
+  );
+  
+  const newVote: Vote = {
+    ...vote,
+    id: `vote-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    createdAt: new Date().toISOString(),
+  };
+  data.votes.push(newVote);
+  save();
+  return newVote;
+}
+
+export function getVotesByCategory(categoryId: string): Vote[] {
+  return data.votes.filter(v => v.categoryId === categoryId);
+}
+
+export function getVotesByCategoryAndRank(categoryId: string, rank: number): Vote[] {
+  return data.votes.filter(v => v.categoryId === categoryId && v.rank === rank);
+}
+
+export function hasVoted(voterId: string, categoryId: string): boolean {
+  return data.votes.some(v => v.voterId === voterId && v.categoryId === categoryId);
+}
+
+export function hasVotedForRank(voterId: string, categoryId: string, rank: number): boolean {
+  return data.votes.some(v => v.voterId === voterId && v.categoryId === categoryId && v.rank === rank);
+}
+
+export function getVoteByVoterAndCategory(voterId: string, categoryId: string): Vote | undefined {
+  return data.votes.find(v => v.voterId === voterId && v.categoryId === categoryId);
+}
+
+export function getVoteByVoterCategoryAndRank(voterId: string, categoryId: string, rank: number): Vote | undefined {
+  return data.votes.find(v => v.voterId === voterId && v.categoryId === categoryId && v.rank === rank);
+}
+
