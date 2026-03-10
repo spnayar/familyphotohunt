@@ -30,10 +30,11 @@ git push -u origin main
 1. Go to [railway.app](https://railway.app) and sign in (e.g. with GitHub).
 2. **New Project** → **Deploy from GitHub repo** → select `vacation-photo-contest`.
 3. Railway will detect Next.js and build/run it.
-4. Add a **Volume** (so the SQLite file persists):
-   - In the project, click your service → **Variables** tab.
-   - Go to **Volumes** → **Add Volume** → mount path: `/app/prisma` (or where `prisma/dev.db` lives relative to app root).  
-   - Or in **Settings**, add a volume and set mount path to the folder that contains `dev.db` (e.g. `prisma`).
+4. **Required: Database and volume**
+   - **Variables** → Add: `DATABASE_URL` = `file:./data/dev.db`  
+     (The app creates the `data` folder and runs migrations on start; the DB file must live on a volume.)
+   - **Volumes** → Add **only one** volume with mount path: **`/app/data`**  
+     **Do not** add a volume at `/app/prisma`. A volume at `/app/prisma` overwrites the built-in schema and migrations, so the app fails with "prisma/schema.prisma: file or directory not found". Only the DB file should persist (in `/app/data`).
 5. **Settings** → **Networking** → **Generate domain** so Railway gives you a URL like `xxx.up.railway.app`.
 6. **Custom domain**: Add `familyphotohunt.com` and `www.familyphotohunt.com`. Railway will show the DNS records to use.
 
@@ -52,12 +53,13 @@ Use exactly what Railway shows in “Custom domain” (they may prefer CNAME for
 
 ### 4. Environment variables on Railway
 
-In Railway → your service → **Variables**, add (if you use them):
+In Railway → your service → **Variables**, add:
 
-- `NEXT_PUBLIC_APP_URL` = `https://familyphotohunt.com`
-- Email (if you use send-email): `EMAIL_USER`, `EMAIL_PASSWORD` (or `EMAIL_APP_PASSWORD`), `EMAIL_SERVICE`
+- **`DATABASE_URL`** = **`file:./data/dev.db`** (required — so migrations create the `User` table and others)
+- **`NEXT_PUBLIC_APP_URL`** = `https://www.familyphotohunt.com`
+- Email (optional): `EMAIL_USER`, `EMAIL_PASSWORD` (or `EMAIL_APP_PASSWORD`), `EMAIL_SERVICE`
 
-Redeploy after changing variables.
+Redeploy after changing variables. If you still see "table User does not exist", open the service **Shell** and run: `npm run db:migrate`
 
 ---
 

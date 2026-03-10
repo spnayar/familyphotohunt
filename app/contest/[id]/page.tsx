@@ -168,6 +168,34 @@ export default function ContestPage() {
     setDraggedPhoto(null);
   };
 
+  const movePhotoInCategory = async (categoryId: string, photoId: string, direction: 'up' | 'down') => {
+    if (!participant) return;
+
+    const categoryPhotos = getDraftPhotosForCategory(categoryId);
+    const currentIndex = categoryPhotos.findIndex((p) => p.id === photoId);
+
+    if (currentIndex === -1) return;
+
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= categoryPhotos.length) return;
+
+    const photosToUpdate = [...categoryPhotos];
+    const [movedPhoto] = photosToUpdate.splice(currentIndex, 1);
+    photosToUpdate.splice(targetIndex, 0, movedPhoto);
+
+    const newRanks = photosToUpdate.map((photo, index) => ({
+      id: photo.id,
+      rank: index + 1,
+    }));
+
+    for (const { id, rank } of newRanks) {
+      await updatePhoto(id, { rank });
+    }
+
+    const updatedPhotos = await getPhotosByParticipant(participant.id);
+    setPhotos(updatedPhotos);
+  };
+
   const handleReadyToSubmitToggle = async (checked: boolean) => {
     if (checked) {
       // Check if all categories have at least one photo
@@ -456,7 +484,6 @@ export default function ContestPage() {
                           <input
                             type="file"
                             accept="image/*"
-                            capture="environment"
                             onChange={(e) => handlePhotoUpload(e, category.id)}
                             disabled={uploading}
                             className="hidden"
@@ -534,8 +561,32 @@ export default function ContestPage() {
                                       </p>
                                     )}
                                     <p className="text-xs text-gray-500 mt-1">
-                                      Drag to reorder
+                                      Drag or use the arrows to reorder
                                     </p>
+                                    <div className="mt-2 flex gap-2">
+                                      <button
+                                        type="button"
+                                        disabled={index === 0 || uploading}
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          await movePhotoInCategory(category.id, photo.id, 'up');
+                                        }}
+                                        className="px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs sm:text-sm text-gray-800 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+                                      >
+                                        ↑ Move Up
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={index === draftPhotos.length - 1 || uploading}
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          await movePhotoInCategory(category.id, photo.id, 'down');
+                                        }}
+                                        className="px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs sm:text-sm text-gray-800 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+                                      >
+                                        ↓ Move Down
+                                      </button>
+                                    </div>
                                   </div>
                                   <button
                                     onClick={(e) => {
