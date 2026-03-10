@@ -676,6 +676,7 @@ export default function ContestPage() {
 function VotingView({ contest, participant }: { contest: Contest; participant: Participant }) {
   const [selectedVotes, setSelectedVotes] = useState<Record<string, { first?: string; second?: string }>>({});
   const [allPhotos, setAllPhotos] = useState<Photo[]>([]);
+  const [selectedPhotoForView, setSelectedPhotoForView] = useState<Photo | null>(null);
 
   useEffect(() => {
     // Load all submitted photos
@@ -839,7 +840,8 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
                           <img
                             src={photo.url}
                             alt={`Photo for ${category.name}`}
-                            className="w-full h-48 sm:h-64 object-cover"
+                            className="w-full h-48 sm:h-64 object-cover cursor-pointer"
+                            onClick={() => setSelectedPhotoForView(photo)}
                           />
                           {isFirst && (
                             <div className="absolute top-2 right-2 bg-blue-500 text-white rounded-full w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center font-bold text-sm sm:text-base">
@@ -906,6 +908,29 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
           )}
         </div>
       </div>
+
+      {selectedPhotoForView && (
+        <div
+          className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center p-4"
+          onClick={() => setSelectedPhotoForView(null)}
+        >
+          <div className="relative max-w-7xl max-h-[95vh] w-full h-full flex items-center justify-center">
+            <button
+              onClick={() => setSelectedPhotoForView(null)}
+              className="absolute top-4 right-4 text-white hover:text-gray-300 text-4xl font-bold w-12 h-12 flex items-center justify-center rounded-full hover:bg-white hover:bg-opacity-10 transition-colors z-10"
+              aria-label="Close modal"
+            >
+              ×
+            </button>
+            <img
+              src={selectedPhotoForView.url}
+              alt="Full size photo"
+              className="max-w-full max-h-full object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
