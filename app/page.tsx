@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { registerUser, loginUser, getContestsForUser, getContestsCreatedByUser, joinContestWithCode, getUser } from '@/lib/store';
+import { getContestStageShortLabel, canShowJoinCode } from '@/lib/contest-status';
 
 export default function Home() {
   const router = useRouter();
@@ -392,12 +393,14 @@ export default function Home() {
                               year: 'numeric'
                             })}
                           </div>
-                          <div className="text-xs text-gray-500">
-                            Join Code: <span className="font-mono font-bold">{contest.joinCode}</span>
-                          </div>
+                          {canShowJoinCode(contest.status) && (
+                            <div className="text-xs text-gray-500">
+                              Join Code: <span className="font-mono font-bold">{contest.joinCode}</span>
+                            </div>
+                          )}
                         </div>
                         <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                          {contest.status}
+                          {getContestStageShortLabel(contest.status)}
                         </span>
                       </div>
                     </button>

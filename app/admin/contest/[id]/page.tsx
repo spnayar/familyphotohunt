@@ -13,6 +13,7 @@ import {
   getPhotosByParticipant,
 } from '@/lib/store';
 import { categorySuggestions } from '@/lib/category-suggestions';
+import { CONTEST_STAGES, canShowJoinCode, getContestStageLabel, getStatusBadgeClasses, isResultsStage, isSetupStage, normalizeContestStatus } from '@/lib/contest-status';
 import { Contest, Category, Participant } from '@/types';
 
 export default function ContestAdminPage() {
@@ -158,21 +159,23 @@ export default function ContestAdminPage() {
     if (updated) setContest(updated);
   };
 
-  const handleToggleContestClosed = async () => {
+  const handleStageChange = async (newStatus: Contest['status']) => {
     if (!contest) return;
-    const isCurrentlyClosed = contest.status === 'voting' || contest.status === 'completed';
+    if (normalizeContestStatus(contest.status) === newStatus) return;
 
-    if (!isCurrentlyClosed) {
-      // Opening the toggle - close the contest
-      if (confirm('Are you sure you want to close this contest and start voting?\n\nOnce closed, participants will be able to vote on all submitted photos but cannot add new photos. This action can be reversed.')) {
-        await handleStatusChange('voting');
-      }
-    } else {
-      // Closing the toggle - reopen the contest
-      if (confirm('Reopen this contest? Participants will be able to add new photos again.')) {
-        await handleStatusChange('active');
-      }
+    const stage = CONTEST_STAGES.find((s) => s.value === newStatus);
+    if (!stage) return;
+
+    const currentLabel = getContestStageLabel(contest.status);
+    if (
+      !confirm(
+        `Move contest from "${currentLabel}" to "${stage.label}"?\n\n${stage.description}`
+      )
+    ) {
+      return;
     }
+
+    await handleStatusChange(newStatus);
   };
 
   const handleLogout = () => {
@@ -216,7 +219,7 @@ export default function ContestAdminPage() {
                   year: 'numeric',
                 })}
               </p>
-              {contest.joinCode && (
+              {canShowJoinCode(contest.status) && contest.joinCode && (
                 <div className="mt-3 p-3 bg-blue-50 border-2 border-blue-300 rounded-lg">
                   <p className="text-sm font-semibold text-gray-700 mb-1">Join Code:</p>
                   <p className="text-2xl font-mono font-bold text-blue-600 tracking-widest">
@@ -227,44 +230,76 @@ export default function ContestAdminPage() {
                   </p>
                 </div>
               )}
+              {isSetupStage(contest.status) && (
+                <div className="mt-3 p-3 bg-gray-50 border-2 border-gray-200 rounded-lg">
+                  <p className="text-sm text-gray-600">
+                    The join code will appear here when you move to <strong>Open Photo Collection</strong>.
+                  </p>
+                </div>
+              )}
             </div>
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-3 bg-white rounded-lg p-4 border-2 border-gray-300 shadow-sm">
-                <span className="text-sm sm:text-base font-medium text-gray-700">
-                  Contest Closed (Start Voting)
-                </span>
-                <button
-                  type="button"
-                  onClick={handleToggleContestClosed}
-                  className="relative inline-flex items-center cursor-pointer focus:outline-none focus:ring-4 focus:ring-blue-300 rounded-full"
-                  role="switch"
-                  aria-checked={contest.status === 'voting' || contest.status === 'completed'}
-                >
-                  <div className={`w-14 h-8 rounded-full transition-colors duration-200 ${
-                    contest.status === 'voting' || contest.status === 'completed' 
-                      ? 'bg-green-600' 
-                      : 'bg-gray-300'
-                  }`}>
-                    <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-200 mt-1 ${
-                      contest.status === 'voting' || contest.status === 'completed' 
-                        ? 'translate-x-7' 
-                        : 'translate-x-1'
-                    }`}></div>
-                  </div>
-                </button>
+            <div className="flex flex-col gap-3 w-full sm:w-auto">
+              <div className="bg-white rounded-lg p-4 border-2 border-gray-300 shadow-sm">
+                <p className="text-sm sm:text-base font-semibold text-gray-900 mb-1">Contest Stage</p>
+                <p className="text-xs text-gray-600 mb-3">
+                  Current: {getContestStageLabel(contest.status)}
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {CONTEST_STAGES.map((stage) => {
+                    const currentStage = normalizeContestStatus(contest.status);
+                    const isActive = currentStage === stage.value;
+                    return (
+                      <button
+                        key={stage.value}
+                        type="button"
+                        onClick={() => handleStageChange(stage.value)}
+                        className={`text-left px-3 py-2 rounded-lg border-2 transition-colors touch-manipulation min-h-[44px] ${
+                          isActive
+                            ? 'border-blue-500 bg-blue-50 text-blue-900'
+                            : 'border-gray-200 bg-gray-50 text-gray-800 hover:border-gray-300 hover:bg-gray-100'
+                        }`}
+                      >
+                        <span className="block text-sm font-semibold">{stage.label}</span>
+                        {isActive && (
+                          <span className="block text-xs text-blue-700 mt-0.5">Current stage</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              {(contest.status === 'voting' || contest.status === 'completed') && (
+              {normalizeContestStatus(contest.status) === 'setup' && (
+                <div className="px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg">
+                  <p className="text-sm text-gray-800">
+                    Add categories. Move to Open Photo Collection to reveal the join code and let participants join.
+                  </p>
+                </div>
+              )}
+              {normalizeContestStatus(contest.status) === 'collection' && (
                 <div className="px-4 py-2 bg-green-50 border border-green-300 rounded-lg">
                   <p className="text-sm text-green-800">
-                    {contest.status === 'voting' 
-                      ? '✓ Contest is closed. Participants can vote but cannot add new photos.' 
-                      : '✓ Contest is completed.'}
+                    Participants can upload and submit photos.
+                  </p>
+                </div>
+              )}
+              {normalizeContestStatus(contest.status) === 'voting' && (
+                <div className="px-4 py-2 bg-blue-50 border border-blue-300 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    Photo collection is closed. Participants are voting.
+                  </p>
+                </div>
+              )}
+              {normalizeContestStatus(contest.status) === 'results' && (
+                <div className="px-4 py-2 bg-purple-50 border border-purple-300 rounded-lg">
+                  <p className="text-sm text-purple-800">
+                    Contest complete. View results or run the winner reveal.
                   </p>
                 </div>
               )}
             </div>
           </div>
 
+          {isResultsStage(contest.status) && (
           <div className="mb-6 flex flex-col sm:flex-row gap-3 sm:gap-4">
             <Link
               href={`/admin/contest/${contestId}/results`}
@@ -279,6 +314,7 @@ export default function ContestAdminPage() {
               🎬 Start Winner Reveal (TV Mode)
             </Link>
           </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
             {/* Categories Section */}
@@ -393,8 +429,17 @@ export default function ContestAdminPage() {
 
               <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-gray-700">
-                  <strong>How participants join:</strong> Share the join code (shown above) with participants. 
-                  They will create an account at the login page and use the join code to join this contest.
+                  {canShowJoinCode(contest.status) ? (
+                    <>
+                      <strong>How participants join:</strong> Share the join code (shown above) with participants.
+                      They will create an account at the login page and use the join code to join this contest.
+                    </>
+                  ) : (
+                    <>
+                      <strong>How participants join:</strong> After you move the contest to Open Photo Collection,
+                      a join code will appear above. Share that code so participants can join from the home page.
+                    </>
+                  )}
                 </p>
               </div>
 

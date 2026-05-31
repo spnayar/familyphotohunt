@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -26,7 +26,7 @@ model Contest {
   id           String        @id @default(cuid())
   location     String
   date         String        // Format: "YYYY-MM"
-  status       String        @default("draft") // 'draft' | 'active' | 'voting' | 'completed'
+  status       String        @default("setup") // 'setup' | 'collection' | 'voting' | 'results'
   joinCode     String        @unique
   creatorId    String?       // User who created the contest
   createdAt    DateTime      @default(now())

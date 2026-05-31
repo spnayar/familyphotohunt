@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { isSetupStage } from '@/lib/contest-status';
 
 // POST join contest with join code
 export async function POST(request: NextRequest) {
@@ -27,6 +28,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Invalid join code' },
         { status: 404 }
+      );
+    }
+
+    if (isSetupStage(contest.status)) {
+      return NextResponse.json(
+        { error: 'This contest is not open for joining yet. Check back when photo collection starts.' },
+        { status: 403 }
       );
     }
 

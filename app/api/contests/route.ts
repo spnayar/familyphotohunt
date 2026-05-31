@@ -35,7 +35,7 @@ export async function GET() {
 // POST create new contest
 export async function POST(request: NextRequest) {
   try {
-    const { location, date, status = 'draft', creatorId } = await request.json();
+    const { location, date, status = 'setup', creatorId } = await request.json();
 
     if (!location || !date) {
       return NextResponse.json(

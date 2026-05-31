@@ -85,6 +85,66 @@ npm run build
 npm start
 ```
 
+### Deploying (e.g. Railway)
+
+If the app shows "Application failed to respond":
+
+1. **Check deploy logs** in your host’s dashboard (e.g. Railway → your project → Deployments → View logs). Look for errors from `prisma migrate deploy` or `next start`.
+2. **Database**: The app uses SQLite by default. On Railway you typically use PostgreSQL: set `DATABASE_URL` to your Postgres URL and change `prisma/schema.prisma` to `provider = "postgresql"`, then add a PostgreSQL‑compatible migration if needed.
+3. **Start script**: `npm start` runs `prisma db push` then Next.js. See [Production data safety](#production-data-safety-railway) below before changing deploy settings.
+
+### Production data safety (Railway)
+
+Production runs at [familyphotohunt.com](https://www.familyphotohunt.com) with **SQLite on a persistent Railway volume**. Contests, participants, votes, and **photos** (stored in the database) all live in a single file: `/app/data/dev.db`.
+
+**Normal code deploys do not delete your data.** Railway replaces the app container; the volume keeps the database file.
+
+#### Required Railway settings
+
+| Setting | Value | Why |
+|--------|--------|-----|
+| Volume mount | `/app/data` only | Persists the database across redeploys |
+| `DATABASE_URL` | `file:./data/dev.db` | App always uses the same DB file on the volume |
+| Start script | `prisma db push` (no `--force-reset`) | Updates schema without wiping rows |
+
+**Do not** mount a volume at `/app/prisma`. That overwrites the built-in Prisma schema and breaks deploys.
+
+#### What would wipe contests and photos
+
+Avoid these in production:
+
+- Deleting the volume (`familyphotohunt-data`) in Railway
+- Changing `DATABASE_URL` to a different path (creates a new empty database)
+- Adding a volume at `/app/prisma`
+- Running `prisma migrate reset` or `prisma db push --force-reset`
+- Schema changes that drop tables or columns without a careful migration
+
+Routine UI and feature changes (like copy or layout updates) are safe.
+
+#### Checklist before each deploy
+
+1. **Variables**: `DATABASE_URL` is still `file:./data/dev.db`
+2. **Volumes**: only `/app/data` is mounted; the volume was not deleted
+3. **Start script**: no reset flags added to `npm start` in `package.json`
+4. **After deploy**: confirm an existing contest still appears in the app
+
+#### Reverting code without losing data
+
+- **Railway → Deployments → Redeploy** an older deployment rolls back **app code only**; the database on the volume is unchanged.
+- **Git revert/reset** and push rolls back code; data is still on the volume unless you also change `DATABASE_URL` or delete the volume.
+
+#### Optional backup before risky changes
+
+Before large schema changes, verify the DB file exists in the Railway service shell:
+
+```bash
+ls -la /app/data/
+```
+
+You should see `dev.db` with a non-zero size. Copy or export it if your Railway plan supports volume backups.
+
+See also [DEPLOYMENT.md](./DEPLOYMENT.md) for full deploy steps.
+
 ## How to Use
 
 ### For Planners/Admins

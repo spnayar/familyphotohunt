@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getAllContests, createContest, deleteContest, getContestsCreatedByUser } from '@/lib/store';
+import { getContestStageShortLabel, getStatusBadgeClasses } from '@/lib/contest-status';
 import { Contest } from '@/types';
 
 function getCurrentMonthYear(): string {
@@ -58,7 +59,7 @@ export default function AdminPage() {
         date: formData.date,
         categories: [],
         participants: [],
-        status: 'draft',
+        status: 'setup',
         creatorId: storedUserId || undefined,
       });
 
@@ -69,8 +70,7 @@ export default function AdminPage() {
       setFormData({ location: '', date: getCurrentMonthYear() });
       setShowCreateForm(false);
       
-      // Show the join code to the admin
-      alert(`Contest created successfully!\n\nJoin Code: ${newContest.joinCode}\n\nShare this code with participants so they can join the contest.`);
+      alert('Contest created successfully! Add categories in Setup, then move to Open Photo Collection to get your join code.');
     } catch (error: any) {
       alert(`Failed to create contest: ${error.message}`);
     }
@@ -158,7 +158,7 @@ export default function AdminPage() {
                     type="text"
                     value={formData.location}
                     onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    placeholder="e.g., Paris, France"
+                    placeholder="e.g Paris, France or Company Retreat"
                     className="w-full px-4 py-3 border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-medium text-gray-900 bg-white touch-manipulation"
                     required
                   />
@@ -209,13 +209,8 @@ export default function AdminPage() {
                     <span>{contest.participants.length} participants</span>
                   </div>
                   <div className="mt-2">
-                    <span className={`inline-block px-2 py-1 rounded text-xs ${
-                      contest.status === 'draft' ? 'bg-gray-200 text-gray-700' :
-                      contest.status === 'active' ? 'bg-green-200 text-green-700' :
-                      contest.status === 'voting' ? 'bg-blue-200 text-blue-700' :
-                      'bg-purple-200 text-purple-700'
-                    }`}>
-                      {contest.status}
+                    <span className={`inline-block px-2 py-1 rounded text-xs ${getStatusBadgeClasses(contest.status)}`}>
+                      {getContestStageShortLabel(contest.status)}
                     </span>
                   </div>
                 </Link>

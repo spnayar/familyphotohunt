@@ -18,6 +18,14 @@ import {
   getUser,
 } from '@/lib/store';
 import { Contest, Participant, Photo, Category } from '@/types';
+import {
+  canCollectPhotos,
+  canVote,
+  getContestStageLabel,
+  isResultsStage,
+  isSetupStage,
+  normalizeContestStatus,
+} from '@/lib/contest-status';
 
 export default function ContestPage() {
   const params = useParams();
@@ -257,9 +265,10 @@ export default function ContestPage() {
     return photos.filter(p => p.categoryId === categoryId && !p.submitted).sort((a, b) => (a.rank || 999) - (b.rank || 999));
   };
 
-  // Voting mode is determined by contest status, not by submission completion
-  // Only when the admin sets the contest status to 'voting' or 'completed' will voting be enabled
-  const isVotingMode = contest?.status === 'voting' || contest?.status === 'completed';
+  const isSetup = isSetupStage(contest?.status);
+  const isCollection = canCollectPhotos(contest?.status);
+  const isVotingMode = canVote(contest?.status);
+  const isResults = isResultsStage(contest?.status);
 
   const getInitials = (name: string) => {
     return name
@@ -346,6 +355,15 @@ export default function ContestPage() {
     );
   }
 
+  if (isResults) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        <UserAvatar />
+        <ContestResultsView contest={contest} participant={participant} />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <UserAvatar />
@@ -364,10 +382,21 @@ export default function ContestPage() {
           <div className="mb-6">
             <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-2">Categories</h2>
             <p className="text-sm sm:text-base text-gray-600 mb-4">
-              Upload photos for each category, drag and drop to rank them (top photo will be submitted), then toggle "Ready to submit" when done.
+              {isSetup
+                ? 'The organizer is preparing this contest. Photo uploads will open when the contest moves to Open Photo Collection.'
+                : 'Upload photos for each category, drag and drop to rank them (top photo will be submitted), then toggle "Ready to submit" when done.'}
             </p>
+
+            {isSetup && (
+              <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4 mb-6">
+                <p className="text-sm text-yellow-800 text-center font-medium">
+                  Contest stage: {getContestStageLabel(contest.status)}
+                </p>
+              </div>
+            )}
             
             {/* Ready to Submit Toggle */}
+            {isCollection && (
             <div className="bg-white rounded-lg shadow-md p-4 mb-6 border-2 border-gray-300">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -397,6 +426,7 @@ export default function ContestPage() {
                 </button>
               </div>
             </div>
+            )}
           </div>
 
           <div className="space-y-6 sm:space-y-8">
@@ -469,11 +499,13 @@ export default function ContestPage() {
                         Not Yet Submitted
                       </div>
                       
-                      {/* Upload Section - Disabled when contest is closed */}
-                      {isVotingMode ? (
+                      {/* Upload Section */}
+                      {!isCollection ? (
                         <div className="mb-6 p-4 bg-gray-100 border-2 border-gray-300 rounded-lg">
                           <p className="text-sm text-gray-600 text-center">
-                            Contest is closed. You can view your photos but cannot add new ones.
+                            {isSetup
+                              ? 'Photo collection has not started yet.'
+                              : 'Photo collection is closed for this contest.'}
                           </p>
                         </div>
                       ) : (
@@ -504,7 +536,7 @@ export default function ContestPage() {
                         </div>
                       )}
 
-                      {draftPhotos.length === 0 && !isVotingMode && (
+                      {draftPhotos.length === 0 && isCollection && (
                         <p className="text-gray-500 text-sm text-center">No photos added yet for this category</p>
                       )}
                     </div>
@@ -513,16 +545,16 @@ export default function ContestPage() {
                   {!hasSubmitted && draftPhotos.length > 0 && (
                     <div className="mb-6">
                       <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3">
-                        Your Photos {isVotingMode ? '' : '- Drag to Rank (Top photo will be submitted)'}
+                        Your Photos {isCollection ? '- Drag to Rank (Top photo will be submitted)' : ''}
                       </h3>
-                      {!isVotingMode && (
+                      {isCollection && (
                         <p className="text-sm text-gray-600 mb-4">
                           Drag and drop photos to reorder them. The photo at the top will be submitted when you toggle "Ready to Submit".
                         </p>
                       )}
-                      {isVotingMode && (
+                      {!isCollection && (
                         <p className="text-sm text-gray-600 mb-4">
-                          Contest is closed. You can view your photos but cannot modify them.
+                          Photo collection is not open. You can view your existing photos below.
                         </p>
                       )}
                       <div className="space-y-3">
@@ -531,12 +563,12 @@ export default function ContestPage() {
                           return (
                             <div
                               key={photo.id}
-                              draggable={!isVotingMode}
+                              draggable={isCollection}
                               onDragStart={(e) => handleDragStart(e, photo.id)}
                               onDragOver={handleDragOver}
                               onDrop={(e) => handleDrop(e, photo.id, category.id)}
-                              className={`flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 rounded-lg border-2 transition-all cursor-move ${
-                                isTopRanked && !isVotingMode
+                              className={`flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 rounded-lg border-2 transition-all ${isCollection ? 'cursor-move' : ''} ${
+                                isTopRanked && isCollection
                                   ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-400 shadow-lg'
                                   : 'bg-gray-50 border-gray-200 hover:border-gray-300'
                               } ${draggedPhoto === photo.id ? 'opacity-50' : ''}`}
@@ -549,7 +581,13 @@ export default function ContestPage() {
                                   onClick={() => setSelectedPhotoForView(photo)}
                                 />
                               </div>
-                              {!isVotingMode ? (
+                              {!isCollection ? (
+                                <div className="flex-1 w-full sm:w-auto">
+                                  <p className="text-sm text-gray-600">
+                                    Rank: {photo.rank || index + 1}
+                                  </p>
+                                </div>
+                              ) : (
                                 <>
                                   <div className="flex-1 w-full sm:w-auto">
                                     <p className="text-sm font-medium text-gray-700 mb-1">
@@ -607,12 +645,6 @@ export default function ContestPage() {
                                     Delete
                                   </button>
                                 </>
-                              ) : (
-                                <div className="flex-1 w-full sm:w-auto">
-                                  <p className="text-sm text-gray-600">
-                                    Rank: {photo.rank || index + 1}
-                                  </p>
-                                </div>
                               )}
                             </div>
                           );
@@ -621,20 +653,11 @@ export default function ContestPage() {
                     </div>
                   )}
 
-                  {!hasPhotos && !isVotingMode && (
+                  {!hasPhotos && isCollection && (
                     <div className="mt-4 pt-4 border-t border-red-200">
                       <div className="p-4 bg-red-50 border border-red-300 rounded-lg">
                         <p className="text-sm text-red-800 text-center font-medium">
                           ⚠️ No photos uploaded for this category. Add at least one photo to enable submission.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {!hasSubmitted && draftPhotos.length > 0 && isVotingMode && (
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <div className="p-3 bg-yellow-50 border border-yellow-300 rounded-lg">
-                        <p className="text-sm text-yellow-800 text-center">
-                          Contest is closed. You cannot submit new photos, but you can view your existing photos.
                         </p>
                       </div>
                     </div>
@@ -669,6 +692,27 @@ export default function ContestPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ContestResultsView({ contest, participant }: { contest: Contest; participant: Participant }) {
+  return (
+    <div className="container mx-auto px-4 py-4 sm:py-8">
+      <div className="max-w-2xl mx-auto text-center">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Results Are In!</h1>
+        <p className="text-sm sm:text-base text-gray-600 mb-6">
+          {contest.location} — {participant.name}
+        </p>
+        <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8 border-2 border-purple-200">
+          <p className="text-base text-gray-700 mb-4">
+            Voting is complete for this contest. Your organizer can share the full results and run the winner reveal presentation.
+          </p>
+          <p className="text-sm text-gray-500">
+            Contest stage: Results
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

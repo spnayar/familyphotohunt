@@ -5,7 +5,7 @@ export interface Contest {
   createdAt: string;
   categories: Category[];
   participants: Participant[];
-  status: 'draft' | 'active' | 'voting' | 'completed';
+  status: 'setup' | 'collection' | 'voting' | 'results';
   joinCode: string; // 4-digit alphanumeric code to join the contest
   creatorId?: string | null; // User who created the contest
 }

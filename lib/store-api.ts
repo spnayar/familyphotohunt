@@ -66,7 +66,7 @@ export async function createContest(contest: Omit<Contest, 'id' | 'createdAt' | 
     body: JSON.stringify({
       location: contest.location,
       date: contest.date,
-      status: contest.status || 'draft',
+      status: contest.status || 'setup',
     }),
   });
 }
