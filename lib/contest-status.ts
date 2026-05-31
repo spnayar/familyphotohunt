@@ -36,7 +36,7 @@ export const CONTEST_STAGES: {
     label: 'Voting',
     shortLabel: 'Voting',
     description:
-      'Photo collection is closed. Participants vote for 1st place and honorable mention in each category.',
+      'Photo collection is closed. Participants vote for their favorite photo in each category.',
   },
   {
     value: 'results',

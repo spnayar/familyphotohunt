@@ -56,7 +56,7 @@ export interface Vote {
   categoryId: string;
   voterId: string; // Participant who voted
   photoId: string; // Photo they voted for
-  rank: number; // 1 for 1st place, 2 for 2nd place (honorable mention)
+  rank: number; // Always 1 — one favorite vote per category
   createdAt: string;
 }
 

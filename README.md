@@ -24,8 +24,8 @@ A fun family vacation photo contest app that helps families create togetherness 
 ### Voting System
 - **Automatic Activation**: Voting mode activates when all participants have submitted
 - **Anonymous Voting**: Photos are displayed randomly and anonymously
-- **One Vote Per Category**: Each participant votes for one photo per category
-- **Honorable Mentions**: Vote for both 1st place and 2nd place (honorable mention)
+- **One Vote Per Category**: Each participant picks their favorite photo in each category
+- **Most Votes Wins**: The photo with the most votes wins (ties are supported)
 - **Self-Vote Prevention**: Users cannot vote for their own photos (but their photos are still displayed)
 - **Results Display**: View winners and vote counts
 

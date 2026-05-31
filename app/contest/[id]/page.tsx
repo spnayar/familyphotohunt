@@ -15,7 +15,7 @@ import {
   hasVoted,
   getVotesByCategory,
   addVote,
-  getVoteByVoterCategoryAndRank,
+  getVoteByVoterAndCategory,
   getUser,
 } from '@/lib/store';
 import { Contest, Participant, Photo, Category } from '@/types';
@@ -675,7 +675,7 @@ function ContestResultsView({ contest, participant }: { contest: Contest; partic
 }
 
 function VotingView({ contest, participant }: { contest: Contest; participant: Participant }) {
-  const [selectedVotes, setSelectedVotes] = useState<Record<string, { first?: string; second?: string }>>({});
+  const [selectedVotes, setSelectedVotes] = useState<Record<string, string | undefined>>({});
   const [allPhotos, setAllPhotos] = useState<Photo[]>([]);
   const [selectedPhotoForView, setSelectedPhotoForView] = useState<Photo | null>(null);
   const [isPageLoading, setIsPageLoading] = useState(true);
@@ -697,14 +697,10 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
     };
 
     const loadVotes = async () => {
-      const votes: Record<string, { first?: string; second?: string }> = {};
+      const votes: Record<string, string | undefined> = {};
       for (const category of contest.categories) {
-        const firstVote = await getVoteByVoterCategoryAndRank(participant.id, category.id, 1);
-        const secondVote = await getVoteByVoterCategoryAndRank(participant.id, category.id, 2);
-        votes[category.id] = {
-          first: firstVote?.photoId,
-          second: secondVote?.photoId,
-        };
+        const existingVote = await getVoteByVoterAndCategory(participant.id, category.id);
+        votes[category.id] = existingVote?.photoId;
       }
       setSelectedVotes(votes);
     };
@@ -719,34 +715,20 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
 
   const getPhotosForCategory = (categoryId: string): Photo[] => {
     const categoryPhotos = allPhotos.filter(p => p.categoryId === categoryId);
-    // Randomize order
     return [...categoryPhotos].sort(() => Math.random() - 0.5);
   };
 
-  const handleVote = async (categoryId: string, photoId: string, rank: number) => {
+  const handleVote = async (categoryId: string, photoId: string) => {
     const photo = allPhotos.find(p => p.id === photoId);
     if (photo && photo.participantId === participant.id) {
       alert("You cannot vote for your own photo!");
       return;
     }
 
-    const currentVotes = selectedVotes[categoryId] || {};
-    if (rank === 1 && currentVotes.second === photoId) {
-      alert("You've already selected this photo for honorable mention. Please choose a different photo for 1st place.");
-      return;
-    }
-    if (rank === 2 && currentVotes.first === photoId) {
-      alert("You've already selected this photo for 1st place. Please choose a different photo for honorable mention.");
-      return;
-    }
-
     await run('Saving vote...', async () => {
       setSelectedVotes({
         ...selectedVotes,
-        [categoryId]: {
-          ...currentVotes,
-          [rank === 1 ? 'first' : 'second']: photoId,
-        },
+        [categoryId]: photoId,
       });
 
       await addVote({
@@ -754,15 +736,14 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
         categoryId,
         voterId: participant.id,
         photoId,
-        rank,
+        rank: 1,
       });
     });
   };
 
-  const allCategoriesVoted = contest.categories.every(cat => {
-    const votes = selectedVotes[cat.id];
-    return votes?.first && votes?.second;
-  });
+  const allCategoriesVoted = contest.categories.every(
+    (cat) => !!selectedVotes[cat.id]
+  );
 
   if (isPageLoading) {
     return <PageLoader message="Loading voting..." />;
@@ -793,55 +774,37 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 sm:mb-6">
             <p className="text-sm sm:text-base text-blue-800">
-              <strong>All participants have submitted!</strong> Now it's time to vote. 
-              Select your favorite photo (1st place) and an honorable mention (2nd place) for each category. 
-              Photos are displayed anonymously and in random order. You cannot vote for your own photo.
+              <strong>All participants have submitted!</strong> Now it&apos;s time to vote.
+              Pick your favorite photo in each category. Photos are shown in random order and you cannot vote for your own photo.
             </p>
           </div>
 
           <div className="space-y-6 sm:space-y-8">
             {contest.categories.map((category) => {
               const categoryPhotos = getPhotosForCategory(category.id);
-              const categoryVotes = selectedVotes[category.id] || {};
-              const selectedFirst = categoryVotes.first;
-              const selectedSecond = categoryVotes.second;
+              const selectedPhotoId = selectedVotes[category.id];
 
               return (
                 <div key={category.id} className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
-                  <h2 className="text-xl sm:text-2xl font-semibold mb-4">{category.name}</h2>
-                  
-                  <div className="mb-4 sm:mb-6 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                    <div className="p-4 bg-blue-50 rounded-lg">
-                      <h3 className="font-semibold text-blue-900 mb-2">1st Place</h3>
-                      <p className="text-sm text-blue-700">Select your favorite photo</p>
-                      {selectedFirst && (
-                        <div className="mt-2 text-sm text-blue-600">✓ Selected</div>
-                      )}
-                    </div>
-                    <div className="p-4 bg-purple-50 rounded-lg">
-                      <h3 className="font-semibold text-purple-900 mb-2">Honorable Mention (2nd Place)</h3>
-                      <p className="text-sm text-purple-700">Select your second favorite photo</p>
-                      {selectedSecond && (
-                        <div className="mt-2 text-sm text-purple-600">✓ Selected</div>
-                      )}
-                    </div>
-                  </div>
+                  <h2 className="text-xl sm:text-2xl font-semibold mb-2">{category.name}</h2>
+                  <p className="text-sm text-gray-600 mb-4">
+                    {selectedPhotoId
+                      ? '✓ You picked a favorite for this category. Tap another photo to change your vote.'
+                      : 'Tap your favorite photo in this category.'}
+                  </p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {categoryPhotos.map((photo) => {
                       const isMyPhoto = photo.participantId === participant.id;
-                      const isFirst = selectedFirst === photo.id;
-                      const isSecond = selectedSecond === photo.id;
+                      const isSelected = selectedPhotoId === photo.id;
                       const isDisabled = isMyPhoto;
 
                       return (
                         <div
                           key={photo.id}
                           className={`relative border-2 rounded-lg overflow-hidden transition-all ${
-                            isFirst
+                            isSelected
                               ? 'border-blue-500 ring-2 ring-blue-200'
-                              : isSecond
-                              ? 'border-purple-500 ring-2 ring-purple-200'
                               : isDisabled
                               ? 'border-gray-200 opacity-60'
                               : 'border-gray-200 active:border-gray-400'
@@ -853,14 +816,9 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
                             className="w-full h-48 sm:h-64 object-cover cursor-pointer"
                             onClick={() => setSelectedPhotoForView(photo)}
                           />
-                          {isFirst && (
+                          {isSelected && (
                             <div className="absolute top-2 right-2 bg-blue-500 text-white rounded-full w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center font-bold text-sm sm:text-base">
-                              1
-                            </div>
-                          )}
-                          {isSecond && (
-                            <div className="absolute top-2 right-2 bg-purple-500 text-white rounded-full w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center font-bold text-sm sm:text-base">
-                              2
+                              ✓
                             </div>
                           )}
                           {isMyPhoto && (
@@ -869,28 +827,17 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
                             </div>
                           )}
                           {!isDisabled && (
-                            <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 p-2 flex gap-2">
+                            <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 p-2">
                               <button
-                                onClick={() => void handleVote(category.id, photo.id, 1)}
+                                onClick={() => void handleVote(category.id, photo.id)}
                                 disabled={isLoading}
-                                className={`flex-1 py-2 px-2 rounded text-xs sm:text-sm font-medium touch-manipulation min-h-[44px] disabled:opacity-50 ${
-                                  isFirst
+                                className={`w-full py-2 px-2 rounded text-xs sm:text-sm font-medium touch-manipulation min-h-[44px] disabled:opacity-50 ${
+                                  isSelected
                                     ? 'bg-blue-500 text-white'
                                     : 'bg-white text-blue-600 active:bg-blue-100'
                                 }`}
                               >
-                                {isFirst ? '1st ✓' : 'Vote 1st'}
-                              </button>
-                              <button
-                                onClick={() => void handleVote(category.id, photo.id, 2)}
-                                disabled={isLoading}
-                                className={`flex-1 py-2 px-2 rounded text-xs sm:text-sm font-medium touch-manipulation min-h-[44px] disabled:opacity-50 ${
-                                  isSecond
-                                    ? 'bg-purple-500 text-white'
-                                    : 'bg-white text-purple-600 active:bg-purple-100'
-                                }`}
-                              >
-                                {isSecond ? '2nd ✓' : 'Vote 2nd'}
+                                {isSelected ? 'Your pick ✓' : 'Vote for this photo'}
                               </button>
                             </div>
                           )}
@@ -898,14 +845,6 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
                       );
                     })}
                   </div>
-
-                  {selectedFirst && selectedSecond && (
-                    <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                      <p className="text-green-800 text-sm">
-                        ✓ You've voted for both 1st place and honorable mention in this category
-                      </p>
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -914,7 +853,7 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
           {allCategoriesVoted && (
             <div className="mt-8 bg-green-50 border border-green-200 rounded-lg p-6 text-center">
               <p className="text-green-800 font-semibold text-lg">
-                ✓ You've voted for 1st place and honorable mention in all categories! Thank you for participating.
+                ✓ You&apos;ve voted in all categories! Thank you for participating.
               </p>
             </div>
           )}

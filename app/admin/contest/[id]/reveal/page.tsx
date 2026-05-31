@@ -5,11 +5,19 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   getContest,
-  getVotesByCategoryAndRank,
+  getVotesByCategory,
   getPhotosByCategory,
 } from '@/lib/store';
+import { countVotesByPhoto, getTopVotedPhotoIds } from '@/lib/vote-results';
 import { Contest, Category, Photo, Participant } from '@/types';
 import { PageLoader } from '@/components/PageLoader';
+
+type CategoryWinnerSummary = {
+  category: Category;
+  winningPhotos: Photo[];
+  winnerNames: string[];
+  winnerVotes: number;
+};
 
 export default function RevealPage() {
   const params = useParams();
@@ -21,11 +29,12 @@ export default function RevealPage() {
   const [currentCategoryIndex, setCurrentCategoryIndex] = useState(0);
   const [revealStage, setRevealStage] = useState<'intro' | 'winner' | 'votes' | 'summary'>('intro');
   const [showCollage, setShowCollage] = useState(false);
+  const [allWinners, setAllWinners] = useState<CategoryWinnerSummary[]>([]);
 
   useEffect(() => {
     const loadReveal = async () => {
       const userId = sessionStorage.getItem('userId');
-      
+
       if (!userId) {
         router.push('/');
         return;
@@ -38,80 +47,35 @@ export default function RevealPage() {
       }
       setContest(loadedContest);
       setIsLoading(false);
-      
-      // Calculate winners
+
       await calculateWinners(loadedContest);
     };
     loadReveal();
   }, [contestId, router]);
 
-  const [allWinners, setAllWinners] = useState<Array<{
-    category: Category;
-    winnerPhoto: Photo | null;
-    winnerName: string;
-    winnerVotes: number;
-    honorablePhoto: Photo | null;
-    honorableName: string;
-    honorableVotes: number;
-  }>>([]);
-
   const calculateWinners = async (loadedContest: Contest) => {
-    const winners: Array<{
-      category: Category;
-      winnerPhoto: Photo | null;
-      winnerName: string;
-      winnerVotes: number;
-      honorablePhoto: Photo | null;
-      honorableName: string;
-      honorableVotes: number;
-    }> = [];
+    const winners: CategoryWinnerSummary[] = [];
 
     for (const category of loadedContest.categories) {
-      const categoryPhotos = (await getPhotosByCategory(category.id)).filter(p => p.submitted);
-      const firstPlaceVotes = await getVotesByCategoryAndRank(category.id, 1);
-      const secondPlaceVotes = await getVotesByCategoryAndRank(category.id, 2);
+      const categoryPhotos = (await getPhotosByCategory(category.id)).filter((p) => p.submitted);
+      const votes = await getVotesByCategory(category.id);
+      const voteCounts = countVotesByPhoto(votes);
+      const { photoIds: winningPhotoIds, maxVotes } = getTopVotedPhotoIds(voteCounts);
 
-      const firstPlaceCounts: Record<string, number> = {};
-      firstPlaceVotes.forEach(vote => {
-        firstPlaceCounts[vote.photoId] = (firstPlaceCounts[vote.photoId] || 0) + 1;
+      const winningPhotos = winningPhotoIds
+        .map((id) => categoryPhotos.find((p) => p.id === id))
+        .filter((photo): photo is Photo => !!photo);
+
+      const winnerNames = winningPhotos.map((photo) => {
+        const participant = loadedContest.participants.find((p) => p.id === photo.participantId);
+        return participant?.name || 'Unknown';
       });
-
-      const secondPlaceCounts: Record<string, number> = {};
-      secondPlaceVotes.forEach(vote => {
-        secondPlaceCounts[vote.photoId] = (secondPlaceCounts[vote.photoId] || 0) + 1;
-      });
-
-      let maxFirstVotes = 0;
-      let winningPhotoId = '';
-      Object.entries(firstPlaceCounts).forEach(([photoId, count]) => {
-        if (count > maxFirstVotes) {
-          maxFirstVotes = count;
-          winningPhotoId = photoId;
-        }
-      });
-
-      let maxSecondVotes = 0;
-      let honorableMentionPhotoId = '';
-      Object.entries(secondPlaceCounts).forEach(([photoId, count]) => {
-        if (count > maxSecondVotes) {
-          maxSecondVotes = count;
-          honorableMentionPhotoId = photoId;
-        }
-      });
-
-      const winningPhoto = categoryPhotos.find(p => p.id === winningPhotoId) || null;
-      const honorablePhoto = categoryPhotos.find(p => p.id === honorableMentionPhotoId) || null;
-      const winner = winningPhoto ? loadedContest.participants.find(p => p.id === winningPhoto.participantId) : null;
-      const honorable = honorablePhoto ? loadedContest.participants.find(p => p.id === honorablePhoto.participantId) : null;
 
       winners.push({
         category,
-        winnerPhoto: winningPhoto,
-        winnerName: winner?.name || 'No winner',
-        winnerVotes: maxFirstVotes,
-        honorablePhoto: honorablePhoto,
-        honorableName: honorable?.name || 'No honorable mention',
-        honorableVotes: maxSecondVotes,
+        winningPhotos,
+        winnerNames,
+        winnerVotes: maxVotes,
       });
     }
 
@@ -132,14 +96,10 @@ export default function RevealPage() {
 
   const [currentCategoryData, setCurrentCategoryData] = useState<{
     allPhotos: Photo[];
-    firstPlaceCounts: Record<string, number>;
-    secondPlaceCounts: Record<string, number>;
+    voteCounts: Record<string, number>;
     winningPhotos: Photo[];
-    honorablePhotos: Photo[];
     winners: Participant[];
-    honorables: Participant[];
-    maxFirstVotes: number;
-    maxSecondVotes: number;
+    maxVotes: number;
   } | null>(null);
 
   useEffect(() => {
@@ -147,77 +107,40 @@ export default function RevealPage() {
       if (!currentCategory || !contest) return;
       setCurrentCategoryData(null);
 
-      const allPhotos = (await getPhotosByCategory(currentCategory.id)).filter(p => p.submitted);
-      const firstPlaceVotes = await getVotesByCategoryAndRank(currentCategory.id, 1);
-      const secondPlaceVotes = await getVotesByCategoryAndRank(currentCategory.id, 2);
+      const allPhotos = (await getPhotosByCategory(currentCategory.id)).filter((p) => p.submitted);
+      const votes = await getVotesByCategory(currentCategory.id);
+      const voteCounts = countVotesByPhoto(votes);
+      const { photoIds: winningPhotoIds, maxVotes } = getTopVotedPhotoIds(voteCounts);
 
-      const firstPlaceCounts: Record<string, number> = {};
-      firstPlaceVotes.forEach(vote => {
-        firstPlaceCounts[vote.photoId] = (firstPlaceCounts[vote.photoId] || 0) + 1;
-      });
+      const winningPhotos = winningPhotoIds
+        .map((id) => allPhotos.find((p) => p.id === id))
+        .filter((photo): photo is Photo => !!photo);
 
-      const secondPlaceCounts: Record<string, number> = {};
-      secondPlaceVotes.forEach(vote => {
-        secondPlaceCounts[vote.photoId] = (secondPlaceCounts[vote.photoId] || 0) + 1;
-      });
-
-      let maxFirstVotes = 0;
-      Object.values(firstPlaceCounts).forEach((count) => {
-        if (count > maxFirstVotes) maxFirstVotes = count;
-      });
-      const winningPhotoIds = Object.entries(firstPlaceCounts)
-        .filter(([, count]) => count === maxFirstVotes && maxFirstVotes > 0)
-        .map(([photoId]) => photoId);
-
-      let maxSecondVotes = 0;
-      Object.values(secondPlaceCounts).forEach((count) => {
-        if (count > maxSecondVotes) maxSecondVotes = count;
-      });
-      const honorablePhotoIds = Object.entries(secondPlaceCounts)
-        .filter(([, count]) => count === maxSecondVotes && maxSecondVotes > 0)
-        .map(([photoId]) => photoId);
-
-      const winningPhotos = winningPhotoIds.map((id) => allPhotos.find((p) => p.id === id)!).filter(Boolean);
-      const honorablePhotos = honorablePhotoIds.map((id) => allPhotos.find((p) => p.id === id)!).filter(Boolean);
-      const winners = winningPhotos.map(
-        (p) => contest.participants.find((u) => u.id === p.participantId)!
-      ).filter(Boolean);
-      const honorables = honorablePhotos.map(
-        (p) => contest.participants.find((u) => u.id === p.participantId)!
-      ).filter(Boolean);
+      const winners = winningPhotos
+        .map((p) => contest.participants.find((u) => u.id === p.participantId))
+        .filter((participant): participant is Participant => !!participant);
 
       setCurrentCategoryData({
         allPhotos,
-        firstPlaceCounts,
-        secondPlaceCounts,
+        voteCounts,
         winningPhotos,
-        honorablePhotos,
         winners,
-        honorables,
-        maxFirstVotes,
-        maxSecondVotes,
+        maxVotes,
       });
     };
 
     loadCategoryData();
   }, [currentCategory, contest]);
 
-  // ========== All hooks must be above this line (Rules of Hooks) ==========
-  // Do not add useState/useEffect below; early returns would change hook order.
-
   if (isLoading || !contest) {
     return <PageLoader message="Loading winner reveal..." />;
   }
 
-  // Show summary view
   if (revealStage === 'summary') {
-    const winningPhotos = allWinners
-      .filter(w => w.winnerPhoto)
-      .map(w => w.winnerPhoto!);
+    const winningPhotos = allWinners.flatMap((w) => w.winningPhotos);
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white overflow-auto">
-        {/* Control Bar */}
         <div className="sticky top-0 z-50 bg-black bg-opacity-70 rounded-lg p-4 m-4 backdrop-blur-sm">
           <div className="flex justify-between items-center">
             <div className="flex gap-4">
@@ -260,12 +183,17 @@ export default function RevealPage() {
           </div>
 
           {showCollage ? (
-            // Collage View
             <div className="max-w-7xl mx-auto">
               <h2 className="text-5xl font-bold text-center mb-8">Winning Photos Collage</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {winningPhotos.map((photo, index) => {
-                  const winnerInfo = allWinners.find(w => w.winnerPhoto?.id === photo.id);
+                  const winnerInfo = allWinners.find((w) =>
+                    w.winningPhotos.some((p) => p.id === photo.id)
+                  );
+                  const participant = winnerInfo?.winnerNames[
+                    winnerInfo.winningPhotos.findIndex((p) => p.id === photo.id)
+                  ];
+
                   return (
                     <div
                       key={photo.id}
@@ -274,12 +202,12 @@ export default function RevealPage() {
                     >
                       <img
                         src={photo.url}
-                        alt={winnerInfo?.winnerName}
+                        alt={participant}
                         className="w-full h-64 object-cover rounded-lg border-4 border-yellow-400 shadow-2xl transition-transform duration-300 group-hover:scale-110"
                       />
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black to-transparent p-4 rounded-b-lg">
                         <div className="text-white font-bold text-lg">{winnerInfo?.category.name}</div>
-                        <div className="text-yellow-300 text-sm">📸 {winnerInfo?.winnerName}</div>
+                        <div className="text-yellow-300 text-sm">📸 {participant}</div>
                       </div>
                     </div>
                   );
@@ -287,7 +215,6 @@ export default function RevealPage() {
               </div>
             </div>
           ) : (
-            // List View
             <div className="max-w-6xl mx-auto space-y-8">
               {allWinners.map((winnerInfo, index) => (
                 <div
@@ -298,40 +225,30 @@ export default function RevealPage() {
                   <h2 className="text-4xl font-bold mb-6 text-yellow-400">
                     {winnerInfo.category.name}
                   </h2>
-                  
-                  <div className="grid md:grid-cols-2 gap-6">
-                    {winnerInfo.winnerPhoto && (
-                      <div>
+
+                  <div className={`grid gap-6 ${winnerInfo.winningPhotos.length > 1 ? 'md:grid-cols-2' : ''}`}>
+                    {winnerInfo.winningPhotos.map((photo, photoIndex) => (
+                      <div key={photo.id}>
                         <div className="mb-3">
-                          <div className="text-2xl font-bold text-white">🏆 1st Place</div>
-                          <div className="text-xl text-yellow-300">📸 {winnerInfo.winnerName}</div>
+                          <div className="text-2xl font-bold text-white">
+                            🏆 {winnerInfo.winningPhotos.length > 1 ? 'Winner (tie)' : 'Winner'}
+                          </div>
+                          <div className="text-xl text-yellow-300">
+                            📸 {winnerInfo.winnerNames[photoIndex]}
+                          </div>
                           <div className="text-sm text-gray-300">
                             {winnerInfo.winnerVotes} vote{winnerInfo.winnerVotes !== 1 ? 's' : ''}
                           </div>
                         </div>
                         <img
-                          src={winnerInfo.winnerPhoto.url}
-                          alt={`Winner: ${winnerInfo.winnerName}`}
+                          src={photo.url}
+                          alt={`Winner: ${winnerInfo.winnerNames[photoIndex]}`}
                           className="w-full h-auto rounded-lg border-4 border-yellow-400 shadow-xl"
                         />
                       </div>
-                    )}
-                    
-                    {winnerInfo.honorablePhoto && winnerInfo.honorableVotes > 0 && (
-                      <div>
-                        <div className="mb-3">
-                          <div className="text-2xl font-bold text-white">⭐ 2nd Place</div>
-                          <div className="text-xl text-purple-300">📸 {winnerInfo.honorableName}</div>
-                          <div className="text-sm text-gray-300">
-                            {winnerInfo.honorableVotes} vote{winnerInfo.honorableVotes !== 1 ? 's' : ''}
-                          </div>
-                        </div>
-                        <img
-                          src={winnerInfo.honorablePhoto.url}
-                          alt={`Honorable Mention: ${winnerInfo.honorableName}`}
-                          className="w-full h-auto rounded-lg border-4 border-purple-400 shadow-xl"
-                        />
-                      </div>
+                    ))}
+                    {winnerInfo.winningPhotos.length === 0 && (
+                      <p className="text-gray-300">No votes in this category.</p>
                     )}
                   </div>
                 </div>
@@ -343,7 +260,6 @@ export default function RevealPage() {
     );
   }
 
-  // If no current category and not in summary, show completion message
   if (!currentCategory && (revealStage as string) !== 'summary') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center text-white">
@@ -372,17 +288,7 @@ export default function RevealPage() {
     return <PageLoader message="Loading category..." />;
   }
 
-  const {
-    allPhotos,
-    firstPlaceCounts,
-    secondPlaceCounts,
-    winningPhotos,
-    honorablePhotos,
-    winners,
-    honorables,
-    maxFirstVotes,
-    maxSecondVotes,
-  } = currentCategoryData;
+  const { allPhotos, voteCounts, winningPhotos, winners, maxVotes } = currentCategoryData;
 
   const handleNext = () => {
     if (currentCategoryIndex < contest.categories.length - 1) {
@@ -402,7 +308,6 @@ export default function RevealPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white overflow-hidden">
-      {/* Control Bar */}
       <div className="absolute top-4 left-4 right-4 z-50 flex justify-between items-center bg-black bg-opacity-70 rounded-lg p-4 backdrop-blur-sm">
         <div className="flex gap-4 items-center">
           <button
@@ -443,7 +348,6 @@ export default function RevealPage() {
       </div>
 
       <div className="flex flex-col items-center justify-center min-h-screen p-8 pt-24">
-        {/* Stage 1: Category intro + button to reveal winner */}
         {revealStage === 'intro' && (
           <div className="text-center animate-fade-in">
             <div className="mb-8">
@@ -462,7 +366,6 @@ export default function RevealPage() {
           </div>
         )}
 
-        {/* Stage 2: Winner(s) and 2nd place (with ties) + button to show all photos */}
         {revealStage === 'winner' && (
           <div className="w-full max-w-5xl text-center animate-fade-in space-y-12">
             <h2 className="text-6xl font-bold text-yellow-400 mb-8">{currentCategory.name}</h2>
@@ -471,10 +374,10 @@ export default function RevealPage() {
               <div className="mb-10">
                 <div className="text-6xl mb-4">🏆</div>
                 <h3 className="text-4xl font-bold text-white mb-2">
-                  {winningPhotos.length === 1 ? '1st Place Winner!' : '1st Place Winners! (tie)'}
+                  {winningPhotos.length === 1 ? 'Winner!' : 'Winners! (tie)'}
                 </h3>
                 <p className="text-2xl text-gray-300 mb-6">
-                  {maxFirstVotes} vote{maxFirstVotes !== 1 ? 's' : ''} each
+                  {maxVotes} vote{maxVotes !== 1 ? 's' : ''} each
                 </p>
                 <div className={`grid gap-6 ${winningPhotos.length === 1 ? 'max-w-2xl mx-auto' : 'grid-cols-2 md:grid-cols-3'}`}>
                   {winningPhotos.map((photo, i) => {
@@ -491,32 +394,7 @@ export default function RevealPage() {
                 </div>
               </div>
             ) : (
-              <p className="text-2xl text-gray-400">No 1st place votes in this category.</p>
-            )}
-
-            {honorablePhotos.length > 0 && maxSecondVotes > 0 && (
-              <div className="mb-10">
-                <div className="text-5xl mb-2">⭐</div>
-                <h3 className="text-3xl font-bold text-purple-300 mb-2">
-                  {honorablePhotos.length === 1 ? '2nd Place' : '2nd Place (tie)'}
-                </h3>
-                <p className="text-xl text-gray-300 mb-4">
-                  {maxSecondVotes} vote{maxSecondVotes !== 1 ? 's' : ''} each
-                </p>
-                <div className={`grid gap-4 ${honorablePhotos.length === 1 ? 'max-w-xl mx-auto' : 'grid-cols-2 md:grid-cols-3'}`}>
-                  {honorablePhotos.map((photo, i) => {
-                    const participant = honorables[i] || contest.participants.find((p) => p.id === photo.participantId);
-                    return (
-                      <div key={photo.id} className="rounded-lg overflow-hidden border-4 border-purple-400 shadow-xl">
-                        <img src={photo.url} alt={participant?.name} className="w-full aspect-[4/3] object-cover" />
-                        <div className="p-3 bg-black/40">
-                          <div className="text-lg font-bold text-purple-300">📸 {participant?.name}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              <p className="text-2xl text-gray-400">No votes in this category.</p>
             )}
 
             <button
@@ -528,32 +406,27 @@ export default function RevealPage() {
           </div>
         )}
 
-        {/* Stage 3: All photos with vote counts + button to next category */}
         {revealStage === 'votes' && (
           <div className="w-full max-w-6xl animate-fade-in">
             <h2 className="text-5xl font-bold text-center mb-10">{currentCategory.name} — All submissions</h2>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
               {allPhotos.map((photo) => {
                 const participant = contest.participants.find((p) => p.id === photo.participantId);
-                const firstCount = firstPlaceCounts[photo.id] || 0;
-                const secondCount = secondPlaceCounts[photo.id] || 0;
+                const voteCount = voteCounts[photo.id] || 0;
                 const isWinner = winningPhotos.some((p) => p.id === photo.id);
-                const isHonorable = honorablePhotos.some((p) => p.id === photo.id);
 
                 return (
                   <div
                     key={photo.id}
                     className={`bg-white bg-opacity-10 rounded-lg overflow-hidden border-4 transition-all ${
-                      isWinner ? 'border-yellow-400 shadow-lg shadow-yellow-400/30' : isHonorable ? 'border-purple-400 shadow-lg shadow-purple-400/30' : 'border-white/20'
+                      isWinner ? 'border-yellow-400 shadow-lg shadow-yellow-400/30' : 'border-white/20'
                     }`}
                   >
                     <img src={photo.url} alt={participant?.name} className="w-full h-56 object-cover" />
                     <div className="p-4">
                       <div className="text-xl font-bold mb-2">{participant?.name}</div>
-                      <div className="space-y-1 text-sm">
-                        <div className="text-yellow-300">1st: {firstCount} vote{firstCount !== 1 ? 's' : ''}</div>
-                        <div className="text-purple-300">2nd: {secondCount} vote{secondCount !== 1 ? 's' : ''}</div>
-                        {firstCount === 0 && secondCount === 0 && <div className="text-gray-400">No votes</div>}
+                      <div className="text-sm text-yellow-300">
+                        {voteCount > 0 ? `${voteCount} vote${voteCount !== 1 ? 's' : ''}` : 'No votes'}
                       </div>
                     </div>
                   </div>
@@ -583,7 +456,7 @@ export default function RevealPage() {
             transform: translateY(0);
           }
         }
-        
+
         @keyframes fade-in-delay {
           0% {
             opacity: 0;
@@ -598,7 +471,7 @@ export default function RevealPage() {
             transform: translateY(0);
           }
         }
-        
+
         @keyframes scale-in {
           from {
             opacity: 0;
@@ -625,4 +498,3 @@ export default function RevealPage() {
     </div>
   );
 }
-

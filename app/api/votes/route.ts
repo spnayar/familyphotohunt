@@ -44,12 +44,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Remove existing vote from this voter for this category and rank
+    // One vote per participant per category — replace any existing vote
     await prisma.vote.deleteMany({
       where: {
         voterId,
         categoryId,
-        rank,
       },
     });
 
@@ -59,7 +58,7 @@ export async function POST(request: NextRequest) {
         categoryId,
         voterId,
         photoId,
-        rank,
+        rank: 1,
       },
       include: {
         photo: true,

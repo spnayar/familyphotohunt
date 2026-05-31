@@ -89,7 +89,7 @@ model Vote {
   categoryId String
   voterId    String    // Participant who voted
   photoId    String
-  rank       Int       // 1 for 1st place, 2 for 2nd place
+  rank       Int       // Always 1 (one favorite vote per category)
   createdAt  DateTime  @default(now())
   
   contest    Contest     @relation(fields: [contestId], references: [id], onDelete: Cascade)
