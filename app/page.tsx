@@ -3,22 +3,16 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { registerUser, loginUser, getContestsForUser, getContestsCreatedByUser, joinContestWithCode, lookupContestByJoinCode, getUser } from '@/lib/store';
+import { getContestsForUser, getContestsCreatedByUser, joinContestWithCode, lookupContestByJoinCode, getUser } from '@/lib/store';
+import { clearPendingJoinCode, getPendingJoinCode, setPendingJoinCode } from '@/lib/join-code';
 import { getContestStageShortLabel, canShowJoinCode } from '@/lib/contest-status';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { PageLoader } from '@/components/PageLoader';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
-
-const PENDING_JOIN_CODE_KEY = 'pendingJoinCode';
 
 function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
@@ -40,11 +34,11 @@ function HomeContent() {
       void (async () => {
         try {
           const codeFromUrl = searchParams.get('code');
-          const codeFromStorage = sessionStorage.getItem(PENDING_JOIN_CODE_KEY);
+          const codeFromStorage = getPendingJoinCode();
           const initialCode = (codeFromUrl || codeFromStorage || '').toUpperCase().trim();
           if (initialCode) {
             setJoinCode(initialCode);
-            sessionStorage.setItem(PENDING_JOIN_CODE_KEY, initialCode);
+            setPendingJoinCode(initialCode);
           }
 
           const storedUserId = sessionStorage.getItem('userId');
@@ -80,7 +74,7 @@ function HomeContent() {
     }
 
     if (typeof window !== 'undefined') {
-      sessionStorage.setItem(PENDING_JOIN_CODE_KEY, normalized);
+      setPendingJoinCode(normalized);
     }
 
     const timeout = setTimeout(async () => {
@@ -150,7 +144,7 @@ function HomeContent() {
 
     try {
       const participant = await joinContestWithCode(uid, normalized);
-      sessionStorage.removeItem(PENDING_JOIN_CODE_KEY);
+      clearPendingJoinCode();
       setJoinCode('');
       setCodePreview(null);
       setCodeLookupError('');
@@ -168,90 +162,29 @@ function HomeContent() {
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleContinueWithCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setLoadingMessage('Creating account...');
+    const normalized = joinCode.toUpperCase().trim();
+
+    if (normalized.length !== 4) {
+      setError('Please enter a 4-character contest code');
+      return;
+    }
+
+    setLoadingMessage('Checking code...');
     setLoading(true);
 
-    if (!name.trim() || !email.trim() || !password.trim()) {
-      setError('Please fill in all fields');
-      setLoading(false);
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
-      setLoading(false);
-      return;
-    }
-
     try {
-      const user = await registerUser(email, password, name);
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('userId', user.id);
+      const result = await lookupContestByJoinCode(normalized);
+      if ('contest' in result && result.contest) {
+        setPendingJoinCode(normalized);
+        router.push('/login');
+        return;
       }
-      setUserId(user.id);
-      setIsLoggedIn(true);
-      setUserName(user.name);
-      setError('');
-
-      if (joinCode.trim()) {
-        const joined = await tryJoinAndRedirect(user.id, joinCode);
-        if (joined) return;
-      }
-
-      setIsLoadingContests(true);
-      await loadUserContests(user.id);
-      setIsLoadingContests(false);
-    } catch (err: any) {
-      setError(err.message || 'Registration failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoadingMessage('Logging in...');
-    setLoading(true);
-
-    if (!email.trim() || !password.trim()) {
-      setError('Please enter email and password');
-      setLoading(false);
-      return;
-    }
-
-    try {
-      console.log('Attempting login for:', email);
-      const user = await loginUser(email, password);
-      console.log('Login response:', user);
-      if (user) {
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('userId', user.id);
-          console.log('Stored userId in sessionStorage:', user.id);
-        }
-        setUserId(user.id);
-        setIsLoggedIn(true);
-        setUserName(user.name);
-        setError('');
-
-        if (joinCode.trim()) {
-          const joined = await tryJoinAndRedirect(user.id, joinCode);
-          if (joined) return;
-        }
-
-        setIsLoadingContests(true);
-        await loadUserContests(user.id);
-        setIsLoadingContests(false);
-      } else {
-        console.log('Login failed: user is null');
-        setError('Invalid email or password');
-      }
-    } catch (err: any) {
-      console.error('Login error:', err);
-      setError(err.message || 'Login failed. Please try again.');
+      setError(
+        'error' in result ? result.error : 'Invalid contest code. Please check and try again.'
+      );
     } finally {
       setLoading(false);
     }
@@ -271,7 +204,7 @@ function HomeContent() {
 
     try {
       const participant = await joinContestWithCode(userId, joinCode);
-      sessionStorage.removeItem(PENDING_JOIN_CODE_KEY);
+      clearPendingJoinCode();
       await loadUserContests(userId);
       setJoinCode('');
       setError('');
@@ -292,9 +225,6 @@ function HomeContent() {
     setUserName('');
     setUserContests([]);
     setCreatedContests([]);
-    setEmail('');
-    setPassword('');
-    setName('');
     setShowUserMenu(false);
   };
 
@@ -714,16 +644,12 @@ function HomeContent() {
           </div>
           
           <p className="text-base sm:text-lg text-gray-700 font-medium mb-2">
-            {isRegistering 
-              ? '🎮 Join the fun! Create your account and start competing' 
-              : '🎯 Ready to play? Log in and show off your vacation photos!'}
+            🎯 Ready to play? Enter your contest code to get started.
           </p>
           <p className="text-sm text-gray-600">
-            {isRegistering 
-              ? 'Share your best travel moments and compete for the win!' 
-              : joinCode.trim().length === 4 && codePreview
-                ? `Log in to join ${codePreview.location}`
-                : 'Upload, rank, and vote on amazing vacation photos'}
+            {joinCode.trim().length === 4 && codePreview
+              ? `Join ${codePreview.location} — log in or create an account on the next screen.`
+              : 'Upload, rank, and vote on amazing vacation photos'}
           </p>
           
           {/* Fun feature highlights */}
@@ -743,12 +669,12 @@ function HomeContent() {
           </div>
         </div>
 
-        <div className="mb-6 pb-6 border-b border-gray-200">
+        <form onSubmit={handleContinueWithCode}>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-1 text-center">
             Have a 4 digit contest code?
           </h2>
           <p className="text-sm text-gray-600 mb-4 text-center">
-            Enter it here, then log in or create an account below to join the contest.
+            Enter it here, then continue to log in or create an account.
           </p>
           <label htmlFor="login-join-code" className="sr-only">
             Contest code
@@ -761,9 +687,9 @@ function HomeContent() {
               const next = e.target.value.toUpperCase();
               setJoinCode(next);
               if (next.trim()) {
-                sessionStorage.setItem(PENDING_JOIN_CODE_KEY, next.trim());
+                setPendingJoinCode(next.trim());
               } else {
-                sessionStorage.removeItem(PENDING_JOIN_CODE_KEY);
+                clearPendingJoinCode();
               }
             }}
             placeholder="ABCD"
@@ -772,6 +698,7 @@ function HomeContent() {
             disabled={loading}
             inputMode="text"
             autoComplete="off"
+            autoFocus
           />
           {codePreview && (
             <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 text-sm text-center">
@@ -788,137 +715,43 @@ function HomeContent() {
               {codeLookupError}
             </div>
           )}
+
+          {error && (
+            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs sm:text-sm">
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading || joinCode.trim().length !== 4}
+            className="w-full mt-4 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white py-3 sm:py-4 rounded-lg hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 transition-all font-bold text-base sm:text-lg touch-manipulation min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
+          >
+            {loading ? 'Checking code...' : 'Continue'}
+          </button>
+        </form>
+
+        <div className="mt-6 pt-6 border-t border-gray-200 text-center space-y-3">
+          <p className="text-sm text-gray-600">Already have an account?</p>
+          <Link
+            href="/login"
+            className="inline-block w-full py-2.5 rounded-lg border-2 border-blue-200 text-blue-700 font-medium hover:bg-blue-50 transition-colors min-h-[44px] leading-[44px]"
+          >
+            Log in
+          </Link>
+          <Link
+            href="/login?register=1"
+            className="block text-sm text-blue-600 hover:text-blue-800 touch-manipulation min-h-[44px]"
+          >
+            Don&apos;t have an account? Create one
+          </Link>
+          <Link
+            href="/admin"
+            className="block text-sm text-gray-500 hover:text-gray-700 pt-2 touch-manipulation"
+          >
+            Create or manage a contest
+          </Link>
         </div>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs sm:text-sm">
-            {error}
-          </div>
-        )}
-
-        {isRegistering ? (
-          <form onSubmit={handleRegister}>
-            <div className="mb-4">
-              <label className="block text-gray-700 font-medium mb-2 text-sm sm:text-base">
-                Name
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Your name"
-                className="w-full px-4 py-3 sm:py-4 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 touch-manipulation text-gray-900 text-base sm:text-lg transition-all"
-                required
-                autoFocus
-                disabled={loading}
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-gray-700 font-medium mb-2 text-sm sm:text-base">
-                Email
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                className="w-full px-4 py-3 sm:py-4 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 touch-manipulation text-gray-900 text-base sm:text-lg transition-all"
-                required
-                disabled={loading}
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-gray-700 font-medium mb-2 text-sm sm:text-base">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="At least 6 characters"
-                className="w-full px-4 py-3 sm:py-4 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 touch-manipulation text-gray-900 text-base sm:text-lg transition-all"
-                required
-                minLength={6}
-                disabled={loading}
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white py-3 sm:py-4 rounded-lg hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 active:scale-98 transition-all font-bold text-base sm:text-lg touch-manipulation min-h-[44px] mb-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
-            >
-              {loading ? 'Creating Account...' : '🚀 Start Playing!'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setIsRegistering(false);
-                setError('');
-              }}
-              disabled={loading}
-              className="w-full text-blue-600 hover:text-blue-800 text-sm sm:text-base touch-manipulation min-h-[44px] disabled:opacity-50"
-            >
-              Already have an account? Log in
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleLogin}>
-            <div className="mb-4">
-              <label className="block text-gray-700 font-medium mb-2 text-sm sm:text-base">
-                Email
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                className="w-full px-4 py-3 sm:py-4 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 touch-manipulation text-gray-900 text-base sm:text-lg transition-all"
-                required
-                autoFocus
-                disabled={loading}
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-gray-700 font-medium mb-2 text-sm sm:text-base">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Your password"
-                className="w-full px-4 py-3 sm:py-4 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 touch-manipulation text-gray-900 text-base sm:text-lg transition-all"
-                required
-                disabled={loading}
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white py-3 sm:py-4 rounded-lg hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 active:scale-98 transition-all font-bold text-base sm:text-lg touch-manipulation min-h-[44px] mb-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
-            >
-              {loading ? 'Logging in...' : '🎮 Let\'s Play!'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setIsRegistering(true);
-                setError('');
-              }}
-              disabled={loading}
-              className="w-full text-blue-600 hover:text-blue-800 text-sm sm:text-base touch-manipulation min-h-[44px] disabled:opacity-50"
-            >
-              Don't have an account? Create one
-            </button>
-          </form>
-        )}
 
       </div>
 
