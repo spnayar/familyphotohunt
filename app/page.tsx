@@ -745,6 +745,10 @@ export default function Home() {
         )}
 
       </div>
+
+      <p className="absolute bottom-4 left-0 right-0 text-center text-white/80 text-sm z-10">
+        Version 1.1
+      </p>
     </div>
   );
 }
