@@ -16,6 +16,7 @@ import { categorySuggestions } from '@/lib/category-suggestions';
 import { ContestStageStepper } from '@/components/ContestStageStepper';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { PageLoader } from '@/components/PageLoader';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { CONTEST_STAGES, canShowJoinCode, getContestStageLabel, isResultsStage, isSetupStage, normalizeContestStatus } from '@/lib/contest-status';
 import { useLoadingAction } from '@/lib/use-loading-action';
 import { Contest, Category, Participant } from '@/types';
@@ -35,6 +36,7 @@ export default function ContestAdminPage() {
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
   const [participantSubmissionStatus, setParticipantSubmissionStatus] = useState<Record<string, { submitted: boolean; submittedCount: number; totalCategories: number }>>({});
+  const [isLoadingSubmissionStatus, setIsLoadingSubmissionStatus] = useState(true);
   const { loadingMessage, isLoading: isActionLoading, run } = useLoadingAction();
 
   useEffect(() => {
@@ -54,7 +56,14 @@ export default function ContestAdminPage() {
       }
       setContest(loadedContest);
       setIsLoading(false);
-    
+
+      if (loadedContest.participants.length === 0) {
+        setParticipantSubmissionStatus({});
+        setIsLoadingSubmissionStatus(false);
+        return;
+      }
+
+      setIsLoadingSubmissionStatus(true);
       // Load submission status for each participant
       const statusMap: Record<string, { submitted: boolean; submittedCount: number; totalCategories: number }> = {};
       for (const participant of loadedContest.participants) {
@@ -71,6 +80,7 @@ export default function ContestAdminPage() {
         };
       }
       setParticipantSubmissionStatus(statusMap);
+      setIsLoadingSubmissionStatus(false);
     };
     loadContest();
   }, [contestId, router]);
@@ -436,7 +446,7 @@ export default function ContestAdminPage() {
               <div className="space-y-2">
                 {contest.participants.map((participant) => {
                   const status = participantSubmissionStatus[participant.id];
-                  const hasSubmitted = status?.submitted || false;
+                  const hasSubmitted = status?.submitted ?? participant.submissionFinalized ?? false;
                   const submittedCount = status?.submittedCount || 0;
                   const totalCategories = status?.totalCategories || contest.categories.length;
                   
@@ -467,7 +477,14 @@ export default function ContestAdminPage() {
                           <div className="text-sm sm:text-base text-gray-700 font-medium mb-2">{participant.phone}</div>
                         )}
                         <div className="text-xs sm:text-sm text-gray-600 mt-2">
-                          {submittedCount} of {totalCategories} categories submitted
+                          {isLoadingSubmissionStatus || !status ? (
+                            <span className="inline-flex items-center gap-2 text-gray-500">
+                              <LoadingSpinner size="sm" />
+                              Loading submission status...
+                            </span>
+                          ) : (
+                            `${submittedCount} of ${totalCategories} categories submitted`
+                          )}
                         </div>
                       </div>
                       <button

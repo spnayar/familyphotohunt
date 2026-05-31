@@ -30,6 +30,7 @@ import {
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { PageLoader } from '@/components/PageLoader';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { VotingPhotoGallery } from '@/components/VotingPhotoGallery';
 import { useLoadingAction } from '@/lib/use-loading-action';
 
 export default function ContestPage() {
@@ -677,7 +678,7 @@ function ContestResultsView({ contest, participant }: { contest: Contest; partic
 function VotingView({ contest, participant }: { contest: Contest; participant: Participant }) {
   const [selectedVotes, setSelectedVotes] = useState<Record<string, string | undefined>>({});
   const [allPhotos, setAllPhotos] = useState<Photo[]>([]);
-  const [selectedPhotoForView, setSelectedPhotoForView] = useState<Photo | null>(null);
+  const [galleryState, setGalleryState] = useState<{ categoryId: string; index: number } | null>(null);
   const [isPageLoading, setIsPageLoading] = useState(true);
   const { loadingMessage, isLoading, run } = useLoadingAction();
 
@@ -775,7 +776,7 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 sm:mb-6">
             <p className="text-sm sm:text-base text-blue-800">
               <strong>All participants have submitted!</strong> Now it&apos;s time to vote.
-              Pick your favorite photo in each category. Photos are shown in random order and you cannot vote for your own photo.
+              Pick your favorite photo in each category. Open the gallery for a full-screen view — swipe on your phone to browse. You cannot vote for your own photo.
             </p>
           </div>
 
@@ -789,12 +790,22 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
                   <h2 className="text-xl sm:text-2xl font-semibold mb-2">{category.name}</h2>
                   <p className="text-sm text-gray-600 mb-4">
                     {selectedPhotoId
-                      ? '✓ You picked a favorite for this category. Tap another photo to change your vote.'
-                      : 'Tap your favorite photo in this category.'}
+                      ? '✓ You picked a favorite for this category. Browse the gallery or tap a thumbnail to change your vote.'
+                      : 'Open the gallery to view photos full screen, or vote from the thumbnails below.'}
                   </p>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                    {categoryPhotos.map((photo) => {
+                  {categoryPhotos.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setGalleryState({ categoryId: category.id, index: 0 })}
+                      className="w-full sm:w-auto mb-4 px-5 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 font-medium text-sm sm:text-base touch-manipulation min-h-[44px]"
+                    >
+                      Browse gallery ({categoryPhotos.length} photo{categoryPhotos.length !== 1 ? 's' : ''})
+                    </button>
+                  )}
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
+                    {categoryPhotos.map((photo, photoIndex) => {
                       const isMyPhoto = photo.participantId === participant.id;
                       const isSelected = selectedPhotoId === photo.id;
                       const isDisabled = isMyPhoto;
@@ -802,7 +813,7 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
                       return (
                         <div
                           key={photo.id}
-                          className={`relative border-2 rounded-lg overflow-hidden transition-all ${
+                          className={`relative border-2 rounded-lg overflow-hidden transition-all aspect-square ${
                             isSelected
                               ? 'border-blue-500 ring-2 ring-blue-200'
                               : isDisabled
@@ -810,36 +821,41 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
                               : 'border-gray-200 active:border-gray-400'
                           }`}
                         >
-                          <img
-                            src={photo.url}
-                            alt={`Photo for ${category.name}`}
-                            className="w-full h-48 sm:h-64 object-cover cursor-pointer"
-                            onClick={() => setSelectedPhotoForView(photo)}
-                          />
+                          <button
+                            type="button"
+                            className="absolute inset-0 z-0 w-full h-full"
+                            onClick={() => setGalleryState({ categoryId: category.id, index: photoIndex })}
+                            aria-label={`View photo ${photoIndex + 1} in gallery`}
+                          >
+                            <img
+                              src={photo.url}
+                              alt={`Photo for ${category.name}`}
+                              className="w-full h-full object-cover"
+                            />
+                          </button>
                           {isSelected && (
-                            <div className="absolute top-2 right-2 bg-blue-500 text-white rounded-full w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center font-bold text-sm sm:text-base">
+                            <div className="absolute top-1.5 right-1.5 z-10 bg-blue-500 text-white rounded-full w-7 h-7 flex items-center justify-center font-bold text-xs pointer-events-none">
                               ✓
                             </div>
                           )}
                           {isMyPhoto && (
-                            <div className="absolute bottom-0 left-0 right-0 bg-gray-800 bg-opacity-75 text-white text-xs p-2 text-center">
+                            <div className="absolute bottom-0 left-0 right-0 z-10 bg-gray-800/75 text-white text-[10px] sm:text-xs p-1 text-center pointer-events-none">
                               Your Photo
                             </div>
                           )}
                           {!isDisabled && (
-                            <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 p-2">
-                              <button
-                                onClick={() => void handleVote(category.id, photo.id)}
-                                disabled={isLoading}
-                                className={`w-full py-2 px-2 rounded text-xs sm:text-sm font-medium touch-manipulation min-h-[44px] disabled:opacity-50 ${
-                                  isSelected
-                                    ? 'bg-blue-500 text-white'
-                                    : 'bg-white text-blue-600 active:bg-blue-100'
-                                }`}
-                              >
-                                {isSelected ? 'Your pick ✓' : 'Vote for this photo'}
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void handleVote(category.id, photo.id)}
+                              disabled={isLoading}
+                              className={`absolute bottom-1 left-1 right-1 z-20 py-1.5 px-1 rounded text-[10px] sm:text-xs font-medium touch-manipulation min-h-[36px] disabled:opacity-50 ${
+                                isSelected
+                                  ? 'bg-blue-500 text-white'
+                                  : 'bg-white/95 text-blue-600 active:bg-blue-100'
+                              }`}
+                            >
+                              {isSelected ? '✓ Picked' : 'Vote'}
+                            </button>
                           )}
                         </div>
                       );
@@ -860,28 +876,26 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
         </div>
       </div>
 
-      {selectedPhotoForView && (
-        <div
-          className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center p-4"
-          onClick={() => setSelectedPhotoForView(null)}
-        >
-          <div className="relative max-w-7xl max-h-[95vh] w-full h-full flex items-center justify-center">
-            <button
-              onClick={() => setSelectedPhotoForView(null)}
-              className="absolute top-4 right-4 text-white hover:text-gray-300 text-4xl font-bold w-12 h-12 flex items-center justify-center rounded-full hover:bg-white hover:bg-opacity-10 transition-colors z-10"
-              aria-label="Close modal"
-            >
-              ×
-            </button>
-            <img
-              src={selectedPhotoForView.url}
-              alt="Full size photo"
-              className="max-w-full max-h-full object-contain rounded-lg"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-        </div>
-      )}
+      {galleryState && (() => {
+        const category = contest.categories.find((c) => c.id === galleryState.categoryId);
+        const categoryPhotos = category ? getPhotosForCategory(category.id) : [];
+        if (!category || categoryPhotos.length === 0) return null;
+
+        return (
+          <VotingPhotoGallery
+            photos={categoryPhotos}
+            categoryId={category.id}
+            categoryName={category.name}
+            participantId={participant.id}
+            selectedPhotoId={selectedVotes[category.id]}
+            onVote={handleVote}
+            isVoting={isLoading}
+            open
+            startIndex={galleryState.index}
+            onClose={() => setGalleryState(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
