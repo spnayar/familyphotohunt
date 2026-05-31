@@ -13,7 +13,8 @@ import {
   getPhotosByParticipant,
 } from '@/lib/store';
 import { categorySuggestions } from '@/lib/category-suggestions';
-import { CONTEST_STAGES, canShowJoinCode, getContestStageLabel, getStatusBadgeClasses, isResultsStage, isSetupStage, normalizeContestStatus } from '@/lib/contest-status';
+import { ContestStageStepper } from '@/components/ContestStageStepper';
+import { CONTEST_STAGES, canShowJoinCode, getContestStageLabel, isResultsStage, isSetupStage, normalizeContestStatus } from '@/lib/contest-status';
 import { Contest, Category, Participant } from '@/types';
 
 export default function ContestAdminPage() {
@@ -238,65 +239,46 @@ export default function ContestAdminPage() {
                 </div>
               )}
             </div>
-            <div className="flex flex-col gap-3 w-full sm:w-auto">
-              <div className="bg-white rounded-lg p-4 border-2 border-gray-300 shadow-sm">
-                <p className="text-sm sm:text-base font-semibold text-gray-900 mb-1">Contest Stage</p>
-                <p className="text-xs text-gray-600 mb-3">
-                  Current: {getContestStageLabel(contest.status)}
+          </div>
+
+          <div className="mb-6 sm:mb-8 rounded-xl border-2 border-gray-200 bg-white p-4 sm:p-6 shadow-sm">
+            <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-base font-semibold text-gray-900 sm:text-lg">Contest Stage</p>
+                <p className="text-sm text-gray-600">
+                  Tap a stage to move the contest forward or back.
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {CONTEST_STAGES.map((stage) => {
-                    const currentStage = normalizeContestStatus(contest.status);
-                    const isActive = currentStage === stage.value;
-                    return (
-                      <button
-                        key={stage.value}
-                        type="button"
-                        onClick={() => handleStageChange(stage.value)}
-                        className={`text-left px-3 py-2 rounded-lg border-2 transition-colors touch-manipulation min-h-[44px] ${
-                          isActive
-                            ? 'border-blue-500 bg-blue-50 text-blue-900'
-                            : 'border-gray-200 bg-gray-50 text-gray-800 hover:border-gray-300 hover:bg-gray-100'
-                        }`}
-                      >
-                        <span className="block text-sm font-semibold">{stage.label}</span>
-                        {isActive && (
-                          <span className="block text-xs text-blue-700 mt-0.5">Current stage</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
               </div>
-              {normalizeContestStatus(contest.status) === 'setup' && (
-                <div className="px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg">
-                  <p className="text-sm text-gray-800">
-                    Add categories. Move to Open Photo Collection to reveal the join code and let participants join.
-                  </p>
-                </div>
-              )}
-              {normalizeContestStatus(contest.status) === 'collection' && (
-                <div className="px-4 py-2 bg-green-50 border border-green-300 rounded-lg">
-                  <p className="text-sm text-green-800">
-                    Participants can upload and submit photos.
-                  </p>
-                </div>
-              )}
-              {normalizeContestStatus(contest.status) === 'voting' && (
-                <div className="px-4 py-2 bg-blue-50 border border-blue-300 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    Photo collection is closed. Participants are voting.
-                  </p>
-                </div>
-              )}
-              {normalizeContestStatus(contest.status) === 'results' && (
-                <div className="px-4 py-2 bg-purple-50 border border-purple-300 rounded-lg">
-                  <p className="text-sm text-purple-800">
-                    Contest complete. View results or run the winner reveal.
-                  </p>
-                </div>
-              )}
+              <span className="inline-flex w-fit items-center rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-800">
+                {getContestStageLabel(contest.status)}
+              </span>
             </div>
+
+            <ContestStageStepper
+              currentStatus={contest.status}
+              onStageSelect={handleStageChange}
+            />
+
+            {normalizeContestStatus(contest.status) === 'setup' && (
+              <p className="mt-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                Add categories, then move to <strong>Photo Collection</strong> to reveal the join code and let participants join.
+              </p>
+            )}
+            {normalizeContestStatus(contest.status) === 'collection' && (
+              <p className="mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+                Participants can upload and submit photos.
+              </p>
+            )}
+            {normalizeContestStatus(contest.status) === 'voting' && (
+              <p className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                Photo collection is closed. Participants are voting.
+              </p>
+            )}
+            {normalizeContestStatus(contest.status) === 'results' && (
+              <p className="mt-4 rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-800">
+                Contest complete. View results or run the winner reveal.
+              </p>
+            )}
           </div>
 
           {isResultsStage(contest.status) && (
