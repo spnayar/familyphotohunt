@@ -164,6 +164,22 @@ export async function joinContestWithCode(userId: string, joinCode: string): Pro
   });
 }
 
+export async function lookupContestByJoinCode(
+  joinCode: string
+): Promise<
+  | { contest: { id: string; location: string; date: string; status: string } }
+  | { error: string }
+> {
+  try {
+    const contest = await apiCall<{ id: string; location: string; date: string; status: string }>(
+      `/contests/join?code=${encodeURIComponent(joinCode.toUpperCase().trim())}`
+    );
+    return { contest };
+  } catch (error: any) {
+    return { error: error.message || 'Invalid join code' };
+  }
+}
+
 export async function getParticipantByUserId(userId: string, contestId: string): Promise<Participant | undefined> {
   try {
     return await apiCall<Participant>(`/participants/by-user/${userId}/${contestId}`);

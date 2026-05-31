@@ -2,6 +2,55 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isSetupStage } from '@/lib/contest-status';
 
+// GET lookup contest by join code (no auth required)
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const joinCode = searchParams.get('code');
+
+    if (!joinCode?.trim()) {
+      return NextResponse.json(
+        { error: 'Join code is required' },
+        { status: 400 }
+      );
+    }
+
+    const normalizedCode = joinCode.toUpperCase().trim();
+
+    const contest = await prisma.contest.findUnique({
+      where: { joinCode: normalizedCode },
+      select: {
+        id: true,
+        location: true,
+        date: true,
+        status: true,
+      },
+    });
+
+    if (!contest) {
+      return NextResponse.json(
+        { error: 'Invalid join code' },
+        { status: 404 }
+      );
+    }
+
+    if (isSetupStage(contest.status)) {
+      return NextResponse.json(
+        { error: 'This contest is not open for joining yet. Check back when photo collection starts.' },
+        { status: 403 }
+      );
+    }
+
+    return NextResponse.json(contest);
+  } catch (error: any) {
+    console.error('Lookup join code error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to look up join code' },
+      { status: 500 }
+    );
+  }
+}
+
 // POST join contest with join code
 export async function POST(request: NextRequest) {
   try {
@@ -56,10 +105,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (existingParticipant) {
-      return NextResponse.json(
-        { error: 'You are already a participant in this contest' },
-        { status: 400 }
-      );
+      return NextResponse.json(existingParticipant);
     }
 
     // Create participant

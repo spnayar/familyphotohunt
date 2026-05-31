@@ -1,16 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { registerUser, loginUser, getContestsForUser, getContestsCreatedByUser, joinContestWithCode, getUser } from '@/lib/store';
+import { registerUser, loginUser, getContestsForUser, getContestsCreatedByUser, joinContestWithCode, lookupContestByJoinCode, getUser } from '@/lib/store';
 import { getContestStageShortLabel, canShowJoinCode } from '@/lib/contest-status';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { PageLoader } from '@/components/PageLoader';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 
-export default function Home() {
+const PENDING_JOIN_CODE_KEY = 'pendingJoinCode';
+
+function HomeContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [email, setEmail] = useState('');
@@ -27,6 +30,8 @@ export default function Home() {
   const [isLoadingContests, setIsLoadingContests] = useState(false);
   const [userName, setUserName] = useState<string>('');
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [codePreview, setCodePreview] = useState<{ location: string; date: string } | null>(null);
+  const [codeLookupError, setCodeLookupError] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -34,6 +39,14 @@ export default function Home() {
     if (typeof window !== 'undefined') {
       void (async () => {
         try {
+          const codeFromUrl = searchParams.get('code');
+          const codeFromStorage = sessionStorage.getItem(PENDING_JOIN_CODE_KEY);
+          const initialCode = (codeFromUrl || codeFromStorage || '').toUpperCase().trim();
+          if (initialCode) {
+            setJoinCode(initialCode);
+            sessionStorage.setItem(PENDING_JOIN_CODE_KEY, initialCode);
+          }
+
           const storedUserId = sessionStorage.getItem('userId');
           if (storedUserId) {
             setUserId(storedUserId);
@@ -41,6 +54,12 @@ export default function Home() {
             setIsLoadingContests(true);
             await loadUserInfo(storedUserId);
             await loadUserContests(storedUserId);
+
+            if (initialCode) {
+              const joined = await tryJoinAndRedirect(storedUserId, initialCode, { silent: true });
+              if (joined) return;
+            }
+
             setIsLoadingContests(false);
           }
         } catch (error) {
@@ -49,7 +68,36 @@ export default function Home() {
         }
       })();
     }
-  }, []);
+  }, [searchParams]);
+
+  useEffect(() => {
+    const normalized = joinCode.toUpperCase().trim();
+
+    if (normalized.length !== 4) {
+      setCodePreview(null);
+      setCodeLookupError('');
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(PENDING_JOIN_CODE_KEY, normalized);
+    }
+
+    const timeout = setTimeout(async () => {
+      const result = await lookupContestByJoinCode(normalized);
+      if ('contest' in result && result.contest) {
+        setCodePreview({ location: result.contest.location, date: result.contest.date });
+        setCodeLookupError('');
+      } else {
+        setCodePreview(null);
+        setCodeLookupError(
+          'error' in result ? result.error : 'Invalid contest code. Please check and try again.'
+        );
+      }
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [joinCode]);
 
   const loadUserInfo = async (uid: string) => {
     try {
@@ -85,6 +133,41 @@ export default function Home() {
     }
   };
 
+  const tryJoinAndRedirect = async (
+    uid: string,
+    code: string,
+    options?: { silent?: boolean }
+  ): Promise<boolean> => {
+    const normalized = code.toUpperCase().trim();
+    if (!normalized || normalized.length !== 4) {
+      return false;
+    }
+
+    if (!options?.silent) {
+      setLoadingMessage('Joining contest...');
+      setLoading(true);
+    }
+
+    try {
+      const participant = await joinContestWithCode(uid, normalized);
+      sessionStorage.removeItem(PENDING_JOIN_CODE_KEY);
+      setJoinCode('');
+      setCodePreview(null);
+      setCodeLookupError('');
+      router.push(`/contest/${participant.contestId}`);
+      return true;
+    } catch (err: any) {
+      if (!options?.silent) {
+        setError(err.message || 'Failed to join contest. Please check your code.');
+      }
+      return false;
+    } finally {
+      if (!options?.silent) {
+        setLoading(false);
+      }
+    }
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -112,6 +195,12 @@ export default function Home() {
       setIsLoggedIn(true);
       setUserName(user.name);
       setError('');
+
+      if (joinCode.trim()) {
+        const joined = await tryJoinAndRedirect(user.id, joinCode);
+        if (joined) return;
+      }
+
       setIsLoadingContests(true);
       await loadUserContests(user.id);
       setIsLoadingContests(false);
@@ -146,10 +235,16 @@ export default function Home() {
         setUserId(user.id);
         setIsLoggedIn(true);
         setUserName(user.name);
+        setError('');
+
+        if (joinCode.trim()) {
+          const joined = await tryJoinAndRedirect(user.id, joinCode);
+          if (joined) return;
+        }
+
         setIsLoadingContests(true);
         await loadUserContests(user.id);
         setIsLoadingContests(false);
-        setError('');
       } else {
         console.log('Login failed: user is null');
         setError('Invalid email or password');
@@ -176,6 +271,7 @@ export default function Home() {
 
     try {
       const participant = await joinContestWithCode(userId, joinCode);
+      sessionStorage.removeItem(PENDING_JOIN_CODE_KEY);
       await loadUserContests(userId);
       setJoinCode('');
       setError('');
@@ -625,7 +721,9 @@ export default function Home() {
           <p className="text-sm text-gray-600">
             {isRegistering 
               ? 'Share your best travel moments and compete for the win!' 
-              : 'Upload, rank, and vote on amazing vacation photos'}
+              : joinCode.trim().length === 4 && codePreview
+                ? `Log in to join ${codePreview.location}`
+                : 'Upload, rank, and vote on amazing vacation photos'}
           </p>
           
           {/* Fun feature highlights */}
@@ -643,6 +741,53 @@ export default function Home() {
               <span>Win</span>
             </div>
           </div>
+        </div>
+
+        <div className="mb-6 pb-6 border-b border-gray-200">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-1 text-center">
+            Have a 4 digit contest code?
+          </h2>
+          <p className="text-sm text-gray-600 mb-4 text-center">
+            Enter it here, then log in or create an account below to join the contest.
+          </p>
+          <label htmlFor="login-join-code" className="sr-only">
+            Contest code
+          </label>
+          <input
+            id="login-join-code"
+            type="text"
+            value={joinCode}
+            onChange={(e) => {
+              const next = e.target.value.toUpperCase();
+              setJoinCode(next);
+              if (next.trim()) {
+                sessionStorage.setItem(PENDING_JOIN_CODE_KEY, next.trim());
+              } else {
+                sessionStorage.removeItem(PENDING_JOIN_CODE_KEY);
+              }
+            }}
+            placeholder="ABCD"
+            maxLength={4}
+            className="w-full px-4 py-4 border-2 border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center text-2xl font-mono tracking-[0.3em] touch-manipulation text-gray-900 font-bold"
+            disabled={loading}
+            inputMode="text"
+            autoComplete="off"
+          />
+          {codePreview && (
+            <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 text-sm text-center">
+              Contest found: <strong>{codePreview.location}</strong>
+              {' · '}
+              {new Date(codePreview.date + '-01').toLocaleDateString('en-US', {
+                month: 'long',
+                year: 'numeric',
+              })}
+            </div>
+          )}
+          {codeLookupError && joinCode.trim().length === 4 && (
+            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm text-center">
+              {codeLookupError}
+            </div>
+          )}
         </div>
 
         {error && (
@@ -781,5 +926,13 @@ export default function Home() {
         Version 1.1
       </p>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<PageLoader message="Loading..." />}>
+      <HomeContent />
+    </Suspense>
   );
 }
