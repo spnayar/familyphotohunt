@@ -6,6 +6,13 @@ import Link from 'next/link';
 import { getAllContests, createContest, deleteContest, getContestsCreatedByUser } from '@/lib/store';
 import { Contest } from '@/types';
 
+function getCurrentMonthYear(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const [contests, setContests] = useState<Contest[]>([]);
@@ -13,7 +20,7 @@ export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [formData, setFormData] = useState({
     location: '',
-    date: '',
+    date: getCurrentMonthYear(),
   });
 
   const [userId, setUserId] = useState<string | null>(null);
@@ -59,7 +66,7 @@ export default function AdminPage() {
         const updatedContests = await getContestsCreatedByUser(storedUserId);
         setContests(updatedContests);
       }
-      setFormData({ location: '', date: '' });
+      setFormData({ location: '', date: getCurrentMonthYear() });
       setShowCreateForm(false);
       
       // Show the join code to the admin
@@ -127,7 +134,12 @@ export default function AdminPage() {
 
           <div className="mb-4 sm:mb-6">
             <button
-              onClick={() => setShowCreateForm(!showCreateForm)}
+              onClick={() => {
+                if (!showCreateForm) {
+                  setFormData((prev) => ({ ...prev, date: getCurrentMonthYear() }));
+                }
+                setShowCreateForm(!showCreateForm);
+              }}
               className="w-full sm:w-auto bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors touch-manipulation min-h-[44px] text-sm sm:text-base"
             >
               {showCreateForm ? 'Cancel' : '+ Create New Contest'}
