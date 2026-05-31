@@ -31,8 +31,8 @@ git push -u origin main
 2. **New Project** → **Deploy from GitHub repo** → select `vacation-photo-contest`.
 3. Railway will detect Next.js and build/run it.
 4. **Required: Database and volume**
-   - **Variables** → Add: `DATABASE_URL` = `file:./data/dev.db`  
-     (The app creates the `data` folder and runs migrations on start; the DB file must live on a volume.)
+   - **Variables** → Add: `DATABASE_URL` = `file:../data/dev.db`  
+     (Path is relative to `prisma/schema.prisma`. Use `../data`, not `./data`, so the file lands on the volume at `/app/data/dev.db`.)
    - **Volumes** → Add **only one** volume with mount path: **`/app/data`**  
      **Do not** add a volume at `/app/prisma`. A volume at `/app/prisma` overwrites the built-in schema and migrations, so the app fails with "prisma/schema.prisma: file or directory not found". Only the DB file should persist (in `/app/data`).
 5. **Settings** → **Networking** → **Generate domain** so Railway gives you a URL like `xxx.up.railway.app`.
@@ -55,19 +55,19 @@ Use exactly what Railway shows in “Custom domain” (they may prefer CNAME for
 
 In Railway → your service → **Variables**, add:
 
-- **`DATABASE_URL`** = **`file:./data/dev.db`** (required — so migrations create the `User` table and others)
+- **`DATABASE_URL`** = **`file:../data/dev.db`** (required — Prisma resolves this to `/app/data/dev.db` on the volume)
 - **`NEXT_PUBLIC_APP_URL`** = `https://www.familyphotohunt.com`
 - Email (optional): `EMAIL_USER`, `EMAIL_PASSWORD` (or `EMAIL_APP_PASSWORD`), `EMAIL_SERVICE`
 
 Redeploy after changing variables. Startup logs should show:
 
 ```
-[db] Using DATABASE_URL=file:./data/dev.db
-[db] Database file: .../data/dev.db (NNN KB)
+[db] Using DATABASE_URL=file:../data/dev.db
+[db] Resolved database path: /app/data/dev.db
 [db] Records: X users, Y contests
 ```
 
-If production deploy **fails** with `[db] FATAL: DATABASE_URL must be file:./data/dev.db`, fix the Railway variable — the app refuses to start with a wrong path so it cannot silently use an empty database.
+If production deploy **fails** with `[db] FATAL: DATABASE_URL=file:./data/dev.db`, change Railway to **`file:../data/dev.db`** — the `./` form writes to an ephemeral file inside the container.
 
 **Never** run `prisma migrate reset` or `prisma db push --force-reset` against production.
 

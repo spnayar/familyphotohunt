@@ -90,7 +90,7 @@ npm start
 If the app shows "Application failed to respond":
 
 1. **Check deploy logs** in your host’s dashboard (e.g. Railway → your project → Deployments → View logs). Look for `[db] Using DATABASE_URL=...` and `[db] Records: N users, M contests`. If counts drop to zero after a deploy, stop and check `DATABASE_URL` and the volume mount before creating new data.
-2. **Database**: Production uses **SQLite on a Railway volume** — not PostgreSQL. Keep `DATABASE_URL=file:./data/dev.db` and the volume at `/app/data`. See [Production data safety](#production-data-safety-railway) below.
+2. **Database**: Production uses **SQLite on a Railway volume** — not PostgreSQL. Keep `DATABASE_URL=file:../data/dev.db` and the volume at `/app/data`. See [Production data safety](#production-data-safety-railway) below.
 3. **Start script**: `npm start` runs `scripts/ensure-db.mjs` (schema sync + safety checks) then Next.js. **Do not** change it to use `--force-reset` or point at a different database path.
 
 ### Production data safety (Railway)
@@ -101,25 +101,33 @@ Production runs at [familyphotohunt.com](https://www.familyphotohunt.com) with *
 
 #### Critical: one database path everywhere
 
-Both the running app and startup `prisma db push` must use the **same** SQLite file:
+Prisma resolves SQLite paths **relative to `prisma/schema.prisma`**, not the project root:
 
-- **`DATABASE_URL`** = **`file:./data/dev.db`**
+| `DATABASE_URL` | Resolves to | Persists? |
+|----------------|-------------|-----------|
+| `file:../data/dev.db` | `/app/data/dev.db` (volume) | **Yes** |
+| `file:./data/dev.db` | `/app/prisma/data/dev.db` (container) | **No — wiped every deploy** |
+
+Both the running app and startup `prisma db push` must use:
+
+- **`DATABASE_URL`** = **`file:../data/dev.db`**
 - Volume mount = **`/app/data`**
-
-If the schema ever hardcodes a different path (e.g. `file:./dev.db` under `prisma/`), the app can write to an **ephemeral** file that is **wiped on every deploy**, while the volume holds a separate empty database. Always verify `prisma/schema.prisma` uses `env("DATABASE_URL")` and matches Railway’s variable.
 
 On startup, `scripts/ensure-db.mjs`:
 
-- **Refuses to start in production** if `DATABASE_URL` is missing or not `file:./data/dev.db`
-- Logs the database path, file size, and user/contest counts
+- **Refuses to start in production** if `DATABASE_URL` is missing, uses `file:./data/dev.db`, or does not point at `data/dev.db`
+- **Never copies** `prisma/dev.db` over the volume database
+- **Backs up** `data/dev.db` before schema sync, and **aborts + restores** if user or contest counts drop to zero
+- Logs the resolved database path, file size, and user/contest counts before and after sync
 - Runs `prisma db push` (never `--force-reset`) to apply schema changes without wiping rows
-- Copies a legacy `prisma/dev.db` into `data/dev.db` once if found (local recovery only)
+
+**Never commit `*.db` files to git.** A tracked `prisma/dev.db` in the repo was also overwriting the live database on deploy.
 
 
 | Setting | Value | Why |
 |--------|--------|-----|
 | Volume mount | `/app/data` only | Persists the database across redeploys |
-| `DATABASE_URL` | `file:./data/dev.db` | App always uses the same DB file on the volume |
+| `DATABASE_URL` | `file:../data/dev.db` | Points at the volume file via Prisma’s path rules |
 | Start script | `node scripts/ensure-db.mjs && next start` | Validates DB path, syncs schema without reset |
 
 **Do not** mount a volume at `/app/prisma`. That overwrites the built-in Prisma schema and breaks deploys.
@@ -138,7 +146,7 @@ Routine UI and feature changes (like copy or layout updates) are safe.
 
 #### Checklist before each deploy
 
-1. **Variables**: `DATABASE_URL` is still `file:./data/dev.db`
+1. **Variables**: `DATABASE_URL` is **`file:../data/dev.db`** (not `file:./data/dev.db`)
 2. **Volumes**: only `/app/data` is mounted; the volume was not deleted
 3. **Start script**: no reset flags added to `npm start` in `package.json`
 4. **After deploy**: open Railway logs and confirm `[db] Records: …` shows your expected user/contest counts; spot-check that an existing contest still appears in the app
@@ -148,7 +156,8 @@ Routine UI and feature changes (like copy or layout updates) are safe.
 Every deploy runs `scripts/ensure-db.mjs` before the app starts. In production it **exits with an error** (deploy fails) if:
 
 - `DATABASE_URL` is not set
-- `DATABASE_URL` is anything other than `file:./data/dev.db`
+- `DATABASE_URL` is `file:./data/dev.db` (ephemeral path)
+- `DATABASE_URL` does not point at `data/dev.db` on the volume
 
 That prevents the app from silently switching to an empty ephemeral database. Logs always include the path, file size, and record counts so you can catch problems immediately.
 

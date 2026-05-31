@@ -32,8 +32,10 @@ yarn-error.log*
 
 /data/*.db
 /data/*.db-journal
+/data/*.db.backup
 /prisma/*.db
 /prisma/*.db-journal
+/prisma/*.db.backup
 /prisma/data/
 
 # env files (can opt-in for committing if needed)
