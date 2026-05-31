@@ -18,7 +18,6 @@ export default function Home() {
   const [userId, setUserId] = useState<string | null>(null);
   const [userContests, setUserContests] = useState<any[]>([]);
   const [createdContests, setCreatedContests] = useState<any[]>([]);
-  const [showJoinForm, setShowJoinForm] = useState(false);
   const [joinCode, setJoinCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [userName, setUserName] = useState<string>('');
@@ -103,7 +102,6 @@ export default function Home() {
       setUserId(user.id);
       setIsLoggedIn(true);
       setUserName(user.name);
-      setShowJoinForm(false);
       setError('');
       await loadUserContests(user.id);
     } catch (err: any) {
@@ -165,7 +163,6 @@ export default function Home() {
       const participant = await joinContestWithCode(userId, joinCode);
       await loadUserContests(userId);
       setJoinCode('');
-      setShowJoinForm(false);
       setError('');
       router.push(`/contest/${participant.contestId}`);
     } catch (err: any) {
@@ -187,7 +184,6 @@ export default function Home() {
     setEmail('');
     setPassword('');
     setName('');
-    setShowJoinForm(false);
     setShowUserMenu(false);
   };
 
@@ -310,18 +306,63 @@ export default function Home() {
         <div className="container mx-auto px-4 py-8 sm:py-16">
           <div className="max-w-2xl mx-auto">
             <div className="text-center mb-8">
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-                Welcome to Family Photo Hunt
+              <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">
+                Welcome{userName ? `, ${userName.split(' ')[0]}` : ''}!
               </h1>
-              <p className="text-lg sm:text-xl text-gray-700 mb-6">
-                Upload and manage your photos for contests
+              <p className="text-base sm:text-lg text-gray-600">
+                Join a photo contest or pick up where you left off
               </p>
             </div>
 
-            {/* Contests You've Joined - Most Prominent */}
+            {/* Join contest — primary action */}
+            <div className="mb-8 bg-white rounded-xl shadow-lg p-6 sm:p-8 border-2 border-blue-200">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 text-center">
+                Have a 4 digit contest code?
+              </h2>
+              <p className="text-sm sm:text-base text-gray-600 mb-6 text-center">
+                Enter it here to join a contest someone invited you to
+              </p>
+              <form onSubmit={handleJoinContest}>
+                <div className="mb-4">
+                  <label htmlFor="join-code" className="sr-only">
+                    Contest code
+                  </label>
+                  <input
+                    id="join-code"
+                    type="text"
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                    placeholder="ABCD"
+                    maxLength={4}
+                    className="w-full px-4 py-4 sm:py-5 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center text-2xl sm:text-3xl font-mono tracking-[0.3em] touch-manipulation text-gray-900 font-bold"
+                    required
+                    autoFocus
+                    disabled={loading}
+                    inputMode="text"
+                    autoComplete="off"
+                  />
+                </div>
+
+                {error && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs sm:text-sm">
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-blue-600 text-white py-3 sm:py-4 rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors font-semibold text-base sm:text-lg touch-manipulation min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'Joining...' : 'Join Contest'}
+                </button>
+              </form>
+            </div>
+
+            {/* Contests You've Joined */}
             {userContests.length > 0 ? (
               <div className="mb-8">
-                <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">Your Contests</h2>
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-4">Your Contests</h2>
                 <div className="space-y-4">
                   {userContests.map((contest) => (
                     <button
@@ -364,42 +405,35 @@ export default function Home() {
                   ))}
                 </div>
               </div>
-            ) : (
-              <div className="mb-8 text-center">
-                <div className="bg-white rounded-lg shadow-lg p-8 mb-6">
-                  <p className="text-lg text-gray-700 mb-4">You haven't joined any contests yet.</p>
-                  <p className="text-sm text-gray-600">Join a contest using a code below or create a new one.</p>
-                </div>
-              </div>
-            )}
+            ) : null}
 
-            {/* Contests You Created - Less Prominent */}
+            {/* Contests You Created — secondary */}
             {createdContests.length > 0 && (
               <div className="mb-8">
-                <h2 className="text-lg sm:text-xl font-semibold text-gray-700 mb-4">Contests You Created</h2>
-                <div className="space-y-3">
+                <h2 className="text-base font-medium text-gray-500 mb-3">Contests you&apos;re organizing</h2>
+                <div className="space-y-2">
                   {createdContests.map((contest) => (
                     <button
                       key={contest.id}
                       onClick={() => router.push(`/admin/contest/${contest.id}`)}
-                      className="w-full text-left p-4 sm:p-5 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border border-gray-200 hover:border-green-300 active:scale-98 touch-manipulation"
+                      className="w-full text-left p-4 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow border border-gray-200 hover:border-gray-300 active:scale-98 touch-manipulation"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <div className="font-semibold text-base sm:text-lg text-gray-900 mb-1">{contest.location}</div>
-                          <div className="text-xs sm:text-sm text-gray-600 mb-1">
+                          <div className="font-medium text-sm sm:text-base text-gray-900 mb-0.5">{contest.location}</div>
+                          <div className="text-xs text-gray-500">
                             {new Date(contest.date + '-01').toLocaleDateString('en-US', {
                               month: 'long',
                               year: 'numeric'
                             })}
                           </div>
                           {canShowJoinCode(contest.status) && (
-                            <div className="text-xs text-gray-500">
-                              Join Code: <span className="font-mono font-bold">{contest.joinCode}</span>
+                            <div className="text-xs text-gray-400 mt-1">
+                              Code: <span className="font-mono font-semibold">{contest.joinCode}</span>
                             </div>
                           )}
                         </div>
-                        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
                           {getContestStageShortLabel(contest.status)}
                         </span>
                       </div>
@@ -409,75 +443,15 @@ export default function Home() {
               </div>
             )}
 
-            <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8 space-y-4">
-              <button
-                onClick={() => router.push('/admin')}
-                className="w-full bg-green-600 text-white py-3 sm:py-4 rounded-lg hover:bg-green-700 active:bg-green-800 transition-colors font-medium text-base sm:text-lg touch-manipulation min-h-[44px]"
+            {/* Create / manage — de-emphasized */}
+            <div className="text-center pt-2 pb-4">
+              <p className="text-sm text-gray-500 mb-2">Running your own contest?</p>
+              <Link
+                href="/admin"
+                className="text-sm text-gray-600 hover:text-blue-700 underline underline-offset-2 touch-manipulation"
               >
-                Manage Contests
-              </button>
-              
-              {showJoinForm ? (
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Join a Contest</h2>
-                  <form onSubmit={handleJoinContest}>
-                    <div className="mb-4">
-                      <label className="block text-gray-700 font-medium mb-2 text-sm sm:text-base">
-                        Enter Contest Code
-                      </label>
-                      <input
-                        type="text"
-                        value={joinCode}
-                        onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                        placeholder="ABCD"
-                        maxLength={4}
-                        className="w-full px-4 py-3 sm:py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-xl sm:text-2xl font-mono tracking-widest touch-manipulation text-gray-900 font-bold"
-                        required
-                        autoFocus
-                        disabled={loading}
-                      />
-                      <p className="text-xs text-gray-500 mt-2 text-center">
-                        Enter the 4-digit code shared by the contest organizer
-                      </p>
-                    </div>
-
-                    {error && (
-                      <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs sm:text-sm">
-                        {error}
-                      </div>
-                    )}
-
-                    <div className="flex gap-3">
-                      <button
-                        type="submit"
-                        disabled={loading}
-                        className="flex-1 bg-blue-600 text-white py-3 sm:py-4 rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors font-medium text-base sm:text-lg touch-manipulation min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {loading ? 'Joining...' : 'Join Contest'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowJoinForm(false);
-                          setJoinCode('');
-                          setError('');
-                        }}
-                        disabled={loading}
-                        className="px-6 bg-gray-200 text-gray-700 py-3 sm:py-4 rounded-lg hover:bg-gray-300 active:bg-gray-400 transition-colors font-medium text-base sm:text-lg touch-manipulation min-h-[44px] disabled:opacity-50"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowJoinForm(true)}
-                  className="w-full bg-blue-600 text-white py-3 sm:py-4 rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors font-medium text-base sm:text-lg touch-manipulation min-h-[44px]"
-                >
-                  + Join a Contest
-                </button>
-              )}
+                Create or manage a contest
+              </Link>
             </div>
 
           </div>

@@ -63,14 +63,7 @@ export default function AdminPage() {
         creatorId: storedUserId || undefined,
       });
 
-      if (storedUserId) {
-        const updatedContests = await getContestsCreatedByUser(storedUserId);
-        setContests(updatedContests);
-      }
-      setFormData({ location: '', date: getCurrentMonthYear() });
-      setShowCreateForm(false);
-      
-      alert('Contest created successfully! Add categories in Setup, then move to Open Photo Collection to get your join code.');
+      router.push(`/admin/contest/${newContest.id}`);
     } catch (error: any) {
       alert(`Failed to create contest: ${error.message}`);
     }
