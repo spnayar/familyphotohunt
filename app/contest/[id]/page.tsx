@@ -11,6 +11,7 @@ import {
   addPhoto,
   updatePhoto,
   deletePhoto,
+  updateParticipant,
   hasVoted,
   getVotesByCategory,
   addVote,
@@ -73,13 +74,7 @@ export default function ContestPage() {
 
       const loadedPhotos = await getPhotosByParticipant(loadedParticipant.id);
       setPhotos(loadedPhotos);
-      
-      // Check if user has already submitted (all categories have submitted photos)
-      const allSubmitted = loadedContest.categories.every(category => {
-        const categoryPhotos = loadedPhotos.filter(p => p.categoryId === category.id);
-        return categoryPhotos.some(p => p.submitted);
-      });
-      setReadyToSubmit(allSubmitted);
+      setReadyToSubmit(loadedParticipant.submissionFinalized ?? false);
       setIsPageLoading(false);
     };
     loadData();
@@ -161,21 +156,32 @@ export default function ContestPage() {
   };
 
   const handleReadyToSubmitToggle = async (checked: boolean) => {
+    if (!contest || !participant) return;
+
+    if (checked) {
+      const emptyCategories = contest.categories.filter((category) => {
+        const categoryPhotos = photos.filter(
+          (p) => p.categoryId === category.id && !p.submitted
+        );
+        return categoryPhotos.length === 0;
+      });
+
+      if (emptyCategories.length > 0) {
+        const categoryList = emptyCategories.map((c) => `• ${c.name}`).join('\n');
+        const confirmed = confirm(
+          `You don't have a photo in every category:\n\n${categoryList}\n\nSubmit anyway? You won't be able to add photos until you turn off "Ready to Submit".\n\nClick OK to submit, or Cancel to go back and add photos.`
+        );
+        if (!confirmed) return;
+      }
+    }
+
     await run(checked ? 'Submitting photos...' : 'Updating submission...', async () => {
       if (checked) {
-        const categoriesWithPhotos = contest?.categories.filter(category => {
-          const categoryPhotos = photos.filter(p => p.categoryId === category.id && !p.submitted);
-          return categoryPhotos.length > 0;
-        });
-
-        if (categoriesWithPhotos?.length !== contest?.categories.length) {
-          alert('Please add at least one photo to all categories before submitting.');
-          return;
-        }
-
-        for (const category of contest?.categories || []) {
-          const categoryPhotos = photos.filter(p => p.categoryId === category.id && !p.submitted);
-          const topPhoto = categoryPhotos.find(p => p.rank === 1) || categoryPhotos[0];
+        for (const category of contest.categories) {
+          const categoryPhotos = photos.filter(
+            (p) => p.categoryId === category.id && !p.submitted
+          );
+          const topPhoto = categoryPhotos.find((p) => p.rank === 1) || categoryPhotos[0];
 
           if (topPhoto) {
             await updatePhoto(topPhoto.id, { submitted: true });
@@ -187,23 +193,20 @@ export default function ContestPage() {
             }
           }
         }
-
-        if (participant) {
-          const updatedPhotos = await getPhotosByParticipant(participant.id);
-          setPhotos(updatedPhotos);
-        }
       } else {
-        const submittedPhotos = photos.filter(p => p.submitted);
+        const submittedPhotos = photos.filter((p) => p.submitted);
         for (const photo of submittedPhotos) {
           await updatePhoto(photo.id, { submitted: false });
         }
-
-        if (participant) {
-          const updatedPhotos = await getPhotosByParticipant(participant.id);
-          setPhotos(updatedPhotos);
-        }
       }
 
+      const updatedParticipant = await updateParticipant(participant.id, {
+        submissionFinalized: checked,
+      });
+      setParticipant(updatedParticipant);
+
+      const updatedPhotos = await getPhotosByParticipant(participant.id);
+      setPhotos(updatedPhotos);
       setReadyToSubmit(checked);
     });
   };
@@ -336,7 +339,7 @@ export default function ContestPage() {
             <p className="text-sm sm:text-base text-gray-600 mb-4">
               {isSetup
                 ? 'The organizer is preparing this contest. Photo uploads will open when the contest moves to Open Photo Collection.'
-                : 'Upload photos for each category, use the arrows to rank them (top photo will be submitted), then toggle "Ready to submit" when done.'}
+                : 'Upload photos for each category, rank them with the arrows, then toggle "Ready to Submit" when done. You can submit even if some categories have no photo — you\'ll be asked to confirm first.'}
             </p>
 
             {isSetup && (
@@ -356,9 +359,9 @@ export default function ContestPage() {
                     Ready to Submit
                   </label>
                   <p className="text-sm text-gray-600">
-                    {readyToSubmit 
-                      ? 'Your top-ranked photo for each category has been submitted.'
-                      : 'Toggle on to submit your top-ranked photo for each category. All categories must have at least one photo.'}
+                    {readyToSubmit
+                      ? 'Your submission is locked. Turn off this toggle to add or change photos (while photo collection is open).'
+                      : 'Toggle on when you\'re ready. Your top-ranked photo in each category will be submitted. Missing categories are allowed with a warning.'}
                   </p>
                 </div>
                 <button
@@ -386,27 +389,35 @@ export default function ContestPage() {
             {contest.categories.map((category) => {
               const submittedPhoto = getSubmittedPhotoForCategory(category.id);
               const draftPhotos = getDraftPhotosForCategory(category.id);
-              const hasSubmitted = !!submittedPhoto;
-              const hasPhotos = draftPhotos.length > 0 || hasSubmitted;
+              const hasSubmittedPhoto = !!submittedPhoto;
+              const hasDraftPhotos = draftPhotos.length > 0;
+              const isLocked = readyToSubmit;
+              const showMissingHint =
+                isCollection && !isLocked && !hasSubmittedPhoto && !hasDraftPhotos;
 
               return (
                 <div 
                   key={category.id} 
                   className={`bg-white rounded-lg shadow-lg p-6 sm:p-8 ${
-                    !hasPhotos ? 'border-2 border-red-300 bg-red-50' : ''
+                    showMissingHint ? 'border-2 border-amber-300 bg-amber-50/40' : ''
                   }`}
                 >
                   <div className="mb-4">
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-3 mb-2 flex-wrap">
                       <h2 className="text-xl sm:text-2xl font-semibold text-gray-900">{category.name}</h2>
-                      {!hasPhotos && (
-                        <span className="px-3 py-1 bg-red-200 text-red-800 rounded-full text-xs sm:text-sm font-semibold">
-                          No Photos
+                      {showMissingHint && (
+                        <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs sm:text-sm font-semibold">
+                          No photos yet
                         </span>
                       )}
-                      {hasSubmitted && (
+                      {isLocked && hasSubmittedPhoto && (
                         <span className="px-3 py-1 bg-green-200 text-green-800 rounded-full text-xs sm:text-sm font-semibold">
                           ✓ Submitted
+                        </span>
+                      )}
+                      {isLocked && !hasSubmittedPhoto && (
+                        <span className="px-3 py-1 bg-gray-200 text-gray-700 rounded-full text-xs sm:text-sm font-semibold">
+                          Skipped
                         </span>
                       )}
                     </div>
@@ -417,7 +428,7 @@ export default function ContestPage() {
                     )}
                   </div>
                   
-                  {hasSubmitted ? (
+                  {isLocked && hasSubmittedPhoto ? (
                     <div className="mb-4">
                       <div className="inline-block px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium mb-4">
                         ✓ Submitted
@@ -430,24 +441,16 @@ export default function ContestPage() {
                           onClick={() => setSelectedPhotoForView(submittedPhoto)}
                         />
                       </div>
-                      <button
-                        onClick={() => {
-                          if (confirm('Do you want to change your submission? This will turn off "Ready to Submit" and you can reorder your photos.')) {
-                            void run('Updating submission...', async () => {
-                              await updatePhoto(submittedPhoto.id, { submitted: false });
-                              setReadyToSubmit(false);
-                              if (participant) {
-                                const updatedPhotos = await getPhotosByParticipant(participant.id);
-                                setPhotos(updatedPhotos);
-                              }
-                            });
-                          }
-                        }}
-                        disabled={isLoading}
-                        className="mt-2 text-blue-600 hover:text-blue-800 text-sm font-medium disabled:opacity-50"
-                      >
-                        Change Submission
-                      </button>
+                      <p className="mt-2 text-sm text-gray-600">
+                        Turn off &quot;Ready to Submit&quot; above to change this photo.
+                      </p>
+                    </div>
+                  ) : isLocked && !hasSubmittedPhoto ? (
+                    <div className="mb-4 p-4 bg-gray-100 border border-gray-300 rounded-lg">
+                      <p className="text-sm text-gray-700 font-medium">No photo submitted for this category.</p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Turn off &quot;Ready to Submit&quot; above to add a photo while collection is open.
+                      </p>
                     </div>
                   ) : (
                     <div className="mb-6">
@@ -501,13 +504,15 @@ export default function ContestPage() {
                         </div>
                       )}
 
-                      {draftPhotos.length === 0 && isCollection && (
-                        <p className="text-gray-500 text-sm text-center">No photos added yet for this category</p>
+                      {showMissingHint && (
+                        <p className="text-amber-800 text-sm text-center">
+                          Optional — you can still submit without a photo in this category.
+                        </p>
                       )}
                     </div>
                   )}
 
-                  {!hasSubmitted && draftPhotos.length > 0 && (
+                  {!isLocked && hasDraftPhotos && (
                     <div className="mb-6">
                       <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3">
                         Your Photos {isCollection ? '- Rank with arrows (top photo will be submitted)' : ''}
@@ -614,15 +619,6 @@ export default function ContestPage() {
                     </div>
                   )}
 
-                  {!hasPhotos && isCollection && (
-                    <div className="mt-4 pt-4 border-t border-red-200">
-                      <div className="p-4 bg-red-50 border border-red-300 rounded-lg">
-                        <p className="text-sm text-red-800 text-center font-medium">
-                          ⚠️ No photos uploaded for this category. Add at least one photo to enable submission.
-                        </p>
-                      </div>
-                    </div>
-                  )}
                 </div>
               );
             })}

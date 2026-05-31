@@ -51,13 +51,14 @@ model Category {
 }
 
 model Participant {
-  id         String    @id @default(cuid())
-  contestId  String
-  userId     String
-  name       String
-  email      String
-  phone      String?
-  createdAt  DateTime  @default(now())
+  id                  String    @id @default(cuid())
+  contestId           String
+  userId              String
+  name                String
+  email               String
+  phone               String?
+  submissionFinalized Boolean   @default(false)
+  createdAt           DateTime  @default(now())
   
   contest    Contest   @relation(fields: [contestId], references: [id], onDelete: Cascade)
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)

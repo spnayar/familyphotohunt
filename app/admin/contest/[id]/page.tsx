@@ -62,7 +62,7 @@ export default function ContestAdminPage() {
         const submittedPhotos = participantPhotos.filter(p => p.submitted);
         const submittedCount = submittedPhotos.length;
         const totalCategories = loadedContest.categories.length;
-        const submitted = submittedCount === totalCategories && totalCategories > 0;
+        const submitted = participant.submissionFinalized ?? false;
         
         statusMap[participant.id] = {
           submitted,

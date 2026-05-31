@@ -304,6 +304,16 @@ export async function getVoteByVoterCategoryAndRank(voterId: string, categoryId:
   }
 }
 
+export async function updateParticipant(
+  participantId: string,
+  updates: Partial<Pick<Participant, 'submissionFinalized' | 'name' | 'phone'>>
+): Promise<Participant> {
+  return apiCall<Participant>(`/participants/${participantId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
 export async function deleteParticipant(contestId: string, participantId: string): Promise<boolean> {
   try {
     await apiCall(`/participants/${participantId}`, {
