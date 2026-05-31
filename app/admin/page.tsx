@@ -152,7 +152,7 @@ export default function AdminPage() {
               <form onSubmit={handleCreateContest}>
                 <div className="mb-4">
                   <label className="block text-gray-900 font-semibold mb-2 text-base sm:text-lg">
-                    Location (City)
+                    Location (City) or Event Title
                   </label>
                   <input
                     type="text"
