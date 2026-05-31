@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/ensure-db.mjs && next dev",
     "build": "prisma generate && next build",
-    "start": "node -e \"require('fs').mkdirSync('data',{recursive:true})\" && prisma db push --schema=prisma/schema.prisma && next start",
-    "db:push": "prisma db push --schema=prisma/schema.prisma",
+    "start": "node scripts/ensure-db.mjs && next start",
+    "db:push": "node scripts/ensure-db.mjs",
     "db:migrate": "prisma migrate deploy --schema=prisma/schema.prisma",
     "lint": "eslint"
   },

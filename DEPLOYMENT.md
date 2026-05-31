@@ -59,7 +59,17 @@ In Railway → your service → **Variables**, add:
 - **`NEXT_PUBLIC_APP_URL`** = `https://www.familyphotohunt.com`
 - Email (optional): `EMAIL_USER`, `EMAIL_PASSWORD` (or `EMAIL_APP_PASSWORD`), `EMAIL_SERVICE`
 
-Redeploy after changing variables. If you still see "table User does not exist", open the service **Shell** and run: `npm run db:migrate`
+Redeploy after changing variables. Startup logs should show:
+
+```
+[db] Using DATABASE_URL=file:./data/dev.db
+[db] Database file: .../data/dev.db (NNN KB)
+[db] Records: X users, Y contests
+```
+
+If production deploy **fails** with `[db] FATAL: DATABASE_URL must be file:./data/dev.db`, fix the Railway variable — the app refuses to start with a wrong path so it cannot silently use an empty database.
+
+**Never** run `prisma migrate reset` or `prisma db push --force-reset` against production.
 
 ---
 

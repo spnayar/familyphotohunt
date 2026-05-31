@@ -89,9 +89,9 @@ npm start
 
 If the app shows "Application failed to respond":
 
-1. **Check deploy logs** in your host’s dashboard (e.g. Railway → your project → Deployments → View logs). Look for errors from `prisma migrate deploy` or `next start`.
-2. **Database**: The app uses SQLite by default. On Railway you typically use PostgreSQL: set `DATABASE_URL` to your Postgres URL and change `prisma/schema.prisma` to `provider = "postgresql"`, then add a PostgreSQL‑compatible migration if needed.
-3. **Start script**: `npm start` runs `prisma db push` then Next.js. See [Production data safety](#production-data-safety-railway) below before changing deploy settings.
+1. **Check deploy logs** in your host’s dashboard (e.g. Railway → your project → Deployments → View logs). Look for `[db] Using DATABASE_URL=...` and `[db] Records: N users, M contests`. If counts drop to zero after a deploy, stop and check `DATABASE_URL` and the volume mount before creating new data.
+2. **Database**: Production uses **SQLite on a Railway volume** — not PostgreSQL. Keep `DATABASE_URL=file:./data/dev.db` and the volume at `/app/data`. See [Production data safety](#production-data-safety-railway) below.
+3. **Start script**: `npm start` runs `scripts/ensure-db.mjs` (schema sync + safety checks) then Next.js. **Do not** change it to use `--force-reset` or point at a different database path.
 
 ### Production data safety (Railway)
 
@@ -99,13 +99,28 @@ Production runs at [familyphotohunt.com](https://www.familyphotohunt.com) with *
 
 **Normal code deploys do not delete your data.** Railway replaces the app container; the volume keeps the database file.
 
-#### Required Railway settings
+#### Critical: one database path everywhere
+
+Both the running app and startup `prisma db push` must use the **same** SQLite file:
+
+- **`DATABASE_URL`** = **`file:./data/dev.db`**
+- Volume mount = **`/app/data`**
+
+If the schema ever hardcodes a different path (e.g. `file:./dev.db` under `prisma/`), the app can write to an **ephemeral** file that is **wiped on every deploy**, while the volume holds a separate empty database. Always verify `prisma/schema.prisma` uses `env("DATABASE_URL")` and matches Railway’s variable.
+
+On startup, `scripts/ensure-db.mjs`:
+
+- **Refuses to start in production** if `DATABASE_URL` is missing or not `file:./data/dev.db`
+- Logs the database path, file size, and user/contest counts
+- Runs `prisma db push` (never `--force-reset`) to apply schema changes without wiping rows
+- Copies a legacy `prisma/dev.db` into `data/dev.db` once if found (local recovery only)
+
 
 | Setting | Value | Why |
 |--------|--------|-----|
 | Volume mount | `/app/data` only | Persists the database across redeploys |
 | `DATABASE_URL` | `file:./data/dev.db` | App always uses the same DB file on the volume |
-| Start script | `prisma db push` (no `--force-reset`) | Updates schema without wiping rows |
+| Start script | `node scripts/ensure-db.mjs && next start` | Validates DB path, syncs schema without reset |
 
 **Do not** mount a volume at `/app/prisma`. That overwrites the built-in Prisma schema and breaks deploys.
 
@@ -126,7 +141,16 @@ Routine UI and feature changes (like copy or layout updates) are safe.
 1. **Variables**: `DATABASE_URL` is still `file:./data/dev.db`
 2. **Volumes**: only `/app/data` is mounted; the volume was not deleted
 3. **Start script**: no reset flags added to `npm start` in `package.json`
-4. **After deploy**: confirm an existing contest still appears in the app
+4. **After deploy**: open Railway logs and confirm `[db] Records: …` shows your expected user/contest counts; spot-check that an existing contest still appears in the app
+
+#### Startup safeguards (automatic)
+
+Every deploy runs `scripts/ensure-db.mjs` before the app starts. In production it **exits with an error** (deploy fails) if:
+
+- `DATABASE_URL` is not set
+- `DATABASE_URL` is anything other than `file:./data/dev.db`
+
+That prevents the app from silently switching to an empty ephemeral database. Logs always include the path, file size, and record counts so you can catch problems immediately.
 
 #### Reverting code without losing data
 
