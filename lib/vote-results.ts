@@ -29,3 +29,13 @@ export function getTopVotedPhotoIds(voteCounts: Record<string, number>): {
 
   return { photoIds, maxVotes };
 }
+
+export function sortPhotosByVoteCount<T extends { id: string }>(
+  photos: T[],
+  voteCounts: Record<string, number>
+): T[] {
+  return [...photos].sort((a, b) => {
+    const voteDiff = (voteCounts[b.id] || 0) - (voteCounts[a.id] || 0);
+    return voteDiff !== 0 ? voteDiff : a.id.localeCompare(b.id);
+  });
+}

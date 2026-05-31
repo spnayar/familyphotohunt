@@ -18,6 +18,7 @@ import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { PageLoader } from '@/components/PageLoader';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { CONTEST_STAGES, canShowJoinCode, getContestStageLabel, isResultsStage, isSetupStage, normalizeContestStatus } from '@/lib/contest-status';
+import { getContestPhotosDownloadUrl } from '@/lib/photo-download';
 import { useLoadingAction } from '@/lib/use-loading-action';
 import { Contest, Category, Participant } from '@/types';
 
@@ -300,24 +301,48 @@ export default function ContestAdminPage() {
           </div>
 
           {isResultsStage(contest.status) && (
-          <div className="mb-6 flex flex-col sm:flex-row gap-3 sm:gap-4">
-            <Link
-              href={`/admin/contest/${contestId}/results`}
-              className="w-full sm:w-auto inline-block bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 active:bg-purple-800 transition-colors touch-manipulation min-h-[44px] text-center text-sm sm:text-base"
-            >
-              View Results
-            </Link>
-            <Link
-              href={`/admin/contest/${contestId}/reveal`}
-              className="w-full sm:w-auto inline-block bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-6 py-3 rounded-lg hover:from-yellow-600 hover:to-orange-600 active:from-yellow-700 active:to-orange-700 transition-colors font-semibold text-base sm:text-lg touch-manipulation min-h-[44px] text-center"
-            >
-              🎬 Start Winner Reveal (TV Mode)
-            </Link>
-          </div>
+            <div className="mb-6 sm:mb-8 rounded-xl border-2 border-purple-300 bg-white p-6 sm:p-10 shadow-lg">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 text-center">
+                What&apos;s next?
+              </h2>
+              <p className="text-center text-gray-600 mb-8 text-base sm:text-lg">
+                The contest is complete. View the full results or start the TV winner reveal.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 max-w-3xl mx-auto">
+                <Link
+                  href={`/admin/contest/${contestId}/results`}
+                  className="flex-1 inline-flex items-center justify-center bg-purple-600 text-white px-8 py-5 rounded-xl hover:bg-purple-700 active:bg-purple-800 transition-colors touch-manipulation text-lg sm:text-xl font-bold shadow-md"
+                >
+                  View Results
+                </Link>
+                <Link
+                  href={`/admin/contest/${contestId}/reveal`}
+                  className="flex-1 inline-flex items-center justify-center bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-8 py-5 rounded-xl hover:from-yellow-600 hover:to-orange-600 active:from-yellow-700 active:to-orange-700 transition-colors text-lg sm:text-xl font-bold shadow-md touch-manipulation"
+                >
+                  🎬 Start Winner Reveal
+                </Link>
+              </div>
+              <div className="mt-8 pt-6 border-t border-gray-200 flex flex-wrap justify-center gap-3">
+                <a
+                  href={getContestPhotosDownloadUrl(contestId)}
+                  className="text-sm text-blue-700 hover:text-blue-900 underline touch-manipulation"
+                >
+                  Download all photos
+                </a>
+                <span className="text-gray-300" aria-hidden="true">·</span>
+                <a
+                  href={getContestPhotosDownloadUrl(contestId, { scope: 'winners' })}
+                  className="text-sm text-blue-700 hover:text-blue-900 underline touch-manipulation"
+                >
+                  Download winners
+                </a>
+              </div>
+            </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
-            {/* Categories Section */}
+          <div className={`grid grid-cols-1 gap-4 sm:gap-8 ${!isResultsStage(contest.status) ? 'md:grid-cols-2' : ''}`}>
+            {/* Categories Section — hidden in Results stage */}
+            {!isResultsStage(contest.status) && (
             <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 mb-4">
                 <h2 className="text-xl sm:text-2xl font-semibold text-gray-900">Categories</h2>
@@ -420,6 +445,7 @@ export default function ContestAdminPage() {
                 )}
               </div>
             </div>
+            )}
 
             {/* Participants Section */}
             <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
@@ -427,6 +453,7 @@ export default function ContestAdminPage() {
                 <h2 className="text-xl sm:text-2xl font-semibold text-gray-900">Participants</h2>
               </div>
 
+              {!isResultsStage(contest.status) && (
               <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-gray-700">
                   {canShowJoinCode(contest.status) ? (
@@ -442,6 +469,7 @@ export default function ContestAdminPage() {
                   )}
                 </p>
               </div>
+              )}
 
               <div className="space-y-2">
                 {contest.participants.map((participant) => {

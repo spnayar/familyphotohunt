@@ -8,7 +8,8 @@ import {
   getVotesByCategory,
   getPhotosByCategory,
 } from '@/lib/store';
-import { countVotesByPhoto, getTopVotedPhotoIds } from '@/lib/vote-results';
+import { countVotesByPhoto, getTopVotedPhotoIds, sortPhotosByVoteCount } from '@/lib/vote-results';
+import { getContestPhotosDownloadUrl } from '@/lib/photo-download';
 import { Contest, Category, Photo, Participant } from '@/types';
 import { PageLoader } from '@/components/PageLoader';
 
@@ -107,9 +108,12 @@ export default function RevealPage() {
       if (!currentCategory || !contest) return;
       setCurrentCategoryData(null);
 
-      const allPhotos = (await getPhotosByCategory(currentCategory.id)).filter((p) => p.submitted);
       const votes = await getVotesByCategory(currentCategory.id);
       const voteCounts = countVotesByPhoto(votes);
+      const allPhotos = sortPhotosByVoteCount(
+        (await getPhotosByCategory(currentCategory.id)).filter((p) => p.submitted),
+        voteCounts
+      );
       const { photoIds: winningPhotoIds, maxVotes } = getTopVotedPhotoIds(voteCounts);
 
       const winningPhotos = winningPhotoIds
@@ -161,12 +165,24 @@ export default function RevealPage() {
                 {showCollage ? 'Show List View' : 'Show Collage'}
               </button>
             </div>
-            <Link
-              href={`/admin/contest/${contestId}`}
-              className="px-4 py-2 bg-red-600 rounded-lg hover:bg-red-700"
-            >
-              Exit
-            </Link>
+          <a
+            href={getContestPhotosDownloadUrl(contestId)}
+            className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700"
+          >
+            All photos
+          </a>
+          <a
+            href={getContestPhotosDownloadUrl(contestId, { scope: 'winners' })}
+            className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700"
+          >
+            Winners
+          </a>
+          <Link
+            href={`/admin/contest/${contestId}`}
+            className="px-4 py-2 bg-red-600 rounded-lg hover:bg-red-700"
+          >
+            Exit
+          </Link>
           </div>
         </div>
 
@@ -207,7 +223,7 @@ export default function RevealPage() {
                       />
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black to-transparent p-4 rounded-b-lg">
                         <div className="text-white font-bold text-lg">{winnerInfo?.category.name}</div>
-                        <div className="text-yellow-300 text-sm">📸 {participant}</div>
+                        <div className="text-gray-200 text-sm">📸 {participant}</div>
                       </div>
                     </div>
                   );
@@ -222,7 +238,7 @@ export default function RevealPage() {
                   className="bg-white bg-opacity-10 rounded-lg p-8 backdrop-blur-sm border-2 border-yellow-400 animate-fade-in"
                   style={{ animationDelay: `${index * 150}ms` }}
                 >
-                  <h2 className="text-4xl font-bold mb-6 text-yellow-400">
+                  <h2 className="text-4xl font-bold mb-6 text-white">
                     {winnerInfo.category.name}
                   </h2>
 
@@ -233,7 +249,7 @@ export default function RevealPage() {
                           <div className="text-2xl font-bold text-white">
                             🏆 {winnerInfo.winningPhotos.length > 1 ? 'Winner (tie)' : 'Winner'}
                           </div>
-                          <div className="text-xl text-yellow-300">
+                          <div className="text-xl text-white">
                             📸 {winnerInfo.winnerNames[photoIndex]}
                           </div>
                           <div className="text-sm text-gray-300">
@@ -338,6 +354,18 @@ export default function RevealPage() {
           >
             Restart category
           </button>
+          <a
+            href={getContestPhotosDownloadUrl(contestId)}
+            className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition-all"
+          >
+            All photos
+          </a>
+          <a
+            href={getContestPhotosDownloadUrl(contestId, { scope: 'winners' })}
+            className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition-all"
+          >
+            Winners
+          </a>
           <Link
             href={`/admin/contest/${contestId}`}
             className="px-4 py-2 bg-red-600 rounded-lg hover:bg-red-700 transition-all"
@@ -368,7 +396,7 @@ export default function RevealPage() {
 
         {revealStage === 'winner' && (
           <div className="w-full max-w-5xl text-center animate-fade-in space-y-12">
-            <h2 className="text-6xl font-bold text-yellow-400 mb-8">{currentCategory.name}</h2>
+            <h2 className="text-6xl font-bold text-white mb-8">{currentCategory.name}</h2>
 
             {winningPhotos.length > 0 ? (
               <div className="mb-10">
@@ -385,8 +413,8 @@ export default function RevealPage() {
                     return (
                       <div key={photo.id} className="rounded-lg overflow-hidden border-4 border-yellow-400 shadow-2xl">
                         <img src={photo.url} alt={participant?.name} className="w-full aspect-[4/3] object-cover" />
-                        <div className="p-4 bg-black/40">
-                          <div className="text-xl font-bold text-yellow-300">📸 {participant?.name}</div>
+                        <div className="p-4 bg-black/70">
+                          <div className="text-xl font-bold text-white">📸 {participant?.name}</div>
                         </div>
                       </div>
                     );
@@ -410,7 +438,7 @@ export default function RevealPage() {
           <div className="w-full max-w-6xl animate-fade-in">
             <h2 className="text-5xl font-bold text-center mb-10">{currentCategory.name} — All submissions</h2>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-              {allPhotos.map((photo) => {
+              {allPhotos.map((photo, index) => {
                 const participant = contest.participants.find((p) => p.id === photo.participantId);
                 const voteCount = voteCounts[photo.id] || 0;
                 const isWinner = winningPhotos.some((p) => p.id === photo.id);
@@ -418,14 +446,17 @@ export default function RevealPage() {
                 return (
                   <div
                     key={photo.id}
-                    className={`bg-white bg-opacity-10 rounded-lg overflow-hidden border-4 transition-all ${
-                      isWinner ? 'border-yellow-400 shadow-lg shadow-yellow-400/30' : 'border-white/20'
+                    className={`rounded-lg overflow-hidden border-4 transition-all ${
+                      isWinner ? 'border-amber-400 shadow-lg shadow-amber-400/30' : 'border-white/30'
                     }`}
                   >
                     <img src={photo.url} alt={participant?.name} className="w-full h-56 object-cover" />
-                    <div className="p-4">
-                      <div className="text-xl font-bold mb-2">{participant?.name}</div>
-                      <div className="text-sm text-yellow-300">
+                    <div className="p-4 bg-gray-900 text-white">
+                      <div className="text-xs font-semibold text-gray-400 mb-1">#{index + 1}</div>
+                      <div className="text-lg font-bold mb-1">
+                        {participant?.name || 'Unknown'}
+                      </div>
+                      <div className="text-sm text-gray-300">
                         {voteCount > 0 ? `${voteCount} vote${voteCount !== 1 ? 's' : ''}` : 'No votes'}
                       </div>
                     </div>

@@ -31,6 +31,7 @@ import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { PageLoader } from '@/components/PageLoader';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { VotingPhotoGallery } from '@/components/VotingPhotoGallery';
+import { ContestResultsDisplay } from '@/components/ContestResultsDisplay';
 import { useLoadingAction } from '@/lib/use-loading-action';
 
 export default function ContestPage() {
@@ -656,28 +657,26 @@ export default function ContestPage() {
 
 function ContestResultsView({ contest, participant }: { contest: Contest; participant: Participant }) {
   return (
-    <div className="container mx-auto px-4 py-4 sm:py-8">
-      <div className="max-w-2xl mx-auto text-center">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Results Are In!</h1>
-        <p className="text-sm sm:text-base text-gray-600 mb-6">
-          {contest.location} — {participant.name}
-        </p>
-        <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8 border-2 border-purple-200">
-          <p className="text-base text-gray-700 mb-4">
-            Voting is complete for this contest. Your organizer can share the full results and run the winner reveal presentation.
-          </p>
-          <p className="text-sm text-gray-500">
-            Contest stage: Results
-          </p>
-        </div>
-      </div>
-    </div>
+    <ContestResultsDisplay
+      contest={contest}
+      contestId={contest.id}
+      subtitle={`${contest.location} — ${participant.name}`}
+    />
   );
+}
+
+function shufflePhotos<T>(photos: T[]): T[] {
+  const shuffled = [...photos];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
 }
 
 function VotingView({ contest, participant }: { contest: Contest; participant: Participant }) {
   const [selectedVotes, setSelectedVotes] = useState<Record<string, string | undefined>>({});
-  const [allPhotos, setAllPhotos] = useState<Photo[]>([]);
+  const [photosByCategory, setPhotosByCategory] = useState<Record<string, Photo[]>>({});
   const [galleryState, setGalleryState] = useState<{ categoryId: string; index: number } | null>(null);
   const [isPageLoading, setIsPageLoading] = useState(true);
   const { loadingMessage, isLoading, run } = useLoadingAction();
@@ -694,7 +693,12 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
           }
         }
       }
-      setAllPhotos(submitted);
+      const byCategory: Record<string, Photo[]> = {};
+      for (const category of contest.categories) {
+        const categoryPhotos = submitted.filter((p) => p.categoryId === category.id);
+        byCategory[category.id] = shufflePhotos(categoryPhotos);
+      }
+      setPhotosByCategory(byCategory);
     };
 
     const loadVotes = async () => {
@@ -715,12 +719,12 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
   }, [contest, participant]);
 
   const getPhotosForCategory = (categoryId: string): Photo[] => {
-    const categoryPhotos = allPhotos.filter(p => p.categoryId === categoryId);
-    return [...categoryPhotos].sort(() => Math.random() - 0.5);
+    return photosByCategory[categoryId] ?? [];
   };
 
   const handleVote = async (categoryId: string, photoId: string) => {
-    const photo = allPhotos.find(p => p.id === photoId);
+    const categoryPhotos = getPhotosForCategory(categoryId);
+    const photo = categoryPhotos.find((p) => p.id === photoId);
     if (photo && photo.participantId === participant.id) {
       alert("You cannot vote for your own photo!");
       return;
@@ -787,7 +791,7 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
 
               return (
                 <div key={category.id} className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
-                  <h2 className="text-xl sm:text-2xl font-semibold mb-2">{category.name}</h2>
+                  <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-2">{category.name}</h2>
                   <p className="text-sm text-gray-600 mb-4">
                     {selectedPhotoId
                       ? '✓ You picked a favorite for this category. Browse the gallery or tap a thumbnail to change your vote.'
