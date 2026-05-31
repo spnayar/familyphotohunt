@@ -14,7 +14,10 @@ import {
 } from '@/lib/store';
 import { categorySuggestions } from '@/lib/category-suggestions';
 import { ContestStageStepper } from '@/components/ContestStageStepper';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
+import { PageLoader } from '@/components/PageLoader';
 import { CONTEST_STAGES, canShowJoinCode, getContestStageLabel, isResultsStage, isSetupStage, normalizeContestStatus } from '@/lib/contest-status';
+import { useLoadingAction } from '@/lib/use-loading-action';
 import { Contest, Category, Participant } from '@/types';
 
 export default function ContestAdminPage() {
@@ -32,6 +35,7 @@ export default function ContestAdminPage() {
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
   const [participantSubmissionStatus, setParticipantSubmissionStatus] = useState<Record<string, { submitted: boolean; submittedCount: number; totalCategories: number }>>({});
+  const { loadingMessage, isLoading: isActionLoading, run } = useLoadingAction();
 
   useEffect(() => {
     const loadContest = async () => {
@@ -74,18 +78,20 @@ export default function ContestAdminPage() {
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCategoryName.trim() || !contest) return;
-    
-    await addCategory(contestId, { 
-      name: newCategoryName.trim(),
-      description: newCategoryDescription.trim() || undefined
+
+    await run('Adding category...', async () => {
+      await addCategory(contestId, {
+        name: newCategoryName.trim(),
+        description: newCategoryDescription.trim() || undefined,
+      });
+      const updated = await getContest(contestId);
+      if (updated) {
+        setContest({ ...updated });
+      }
+      setNewCategoryName('');
+      setNewCategoryDescription('');
+      setShowCategoryForm(false);
     });
-    const updated = await getContest(contestId);
-    if (updated) {
-      setContest({ ...updated }); // Create new object to trigger re-render
-    }
-    setNewCategoryName('');
-    setNewCategoryDescription('');
-    setShowCategoryForm(false);
   };
 
   const handleAddSuggestedCategory = async (suggestion: typeof categorySuggestions[0]) => {
@@ -98,16 +104,17 @@ export default function ContestAdminPage() {
       return;
     }
     
-    await addCategory(contestId, {
-      name: suggestion.name,
-      description: suggestion.description
+    await run('Adding category...', async () => {
+      await addCategory(contestId, {
+        name: suggestion.name,
+        description: suggestion.description,
+      });
+
+      const updated = await getContest(contestId);
+      if (updated) {
+        setContest({ ...updated });
+      }
     });
-    
-    // Force UI update by getting fresh contest data
-    const updated = await getContest(contestId);
-    if (updated) {
-      setContest({ ...updated }); // Create new object to trigger re-render
-    }
   };
 
   const handleEditCategory = (category: Category) => {
@@ -122,19 +129,21 @@ export default function ContestAdminPage() {
       return;
     }
     
-    await updateCategory(contestId, categoryId, {
-      name: editCategoryName.trim(),
-      description: editCategoryDescription.trim() || undefined,
+    await run('Saving category...', async () => {
+      await updateCategory(contestId, categoryId, {
+        name: editCategoryName.trim(),
+        description: editCategoryDescription.trim() || undefined,
+      });
+
+      const updated = await getContest(contestId);
+      if (updated) {
+        setContest({ ...updated });
+      }
+
+      setEditingCategoryId(null);
+      setEditCategoryName('');
+      setEditCategoryDescription('');
     });
-    
-    const updated = await getContest(contestId);
-    if (updated) {
-      setContest({ ...updated });
-    }
-    
-    setEditingCategoryId(null);
-    setEditCategoryName('');
-    setEditCategoryDescription('');
   };
 
   const handleCancelEdit = () => {
@@ -145,11 +154,13 @@ export default function ContestAdminPage() {
 
   const handleDeleteCategory = async (categoryId: string) => {
     if (!confirm('Are you sure you want to delete this category?')) return;
-    await deleteCategory(contestId, categoryId);
-    const updated = await getContest(contestId);
-    if (updated) {
-      setContest({ ...updated }); // Create new object to trigger re-render
-    }
+    await run('Deleting category...', async () => {
+      await deleteCategory(contestId, categoryId);
+      const updated = await getContest(contestId);
+      if (updated) {
+        setContest({ ...updated });
+      }
+    });
   };
 
 
@@ -176,7 +187,9 @@ export default function ContestAdminPage() {
       return;
     }
 
-    await handleStatusChange(newStatus);
+    await run('Updating contest stage...', async () => {
+      await handleStatusChange(newStatus);
+    });
   };
 
   const handleLogout = () => {
@@ -185,17 +198,12 @@ export default function ContestAdminPage() {
   };
 
   if (isLoading || !contest) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-gray-600 text-lg">Loading...</div>
-        </div>
-      </div>
-    );
+    return <PageLoader message="Loading contest..." />;
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <LoadingOverlay show={isActionLoading} message={loadingMessage ?? undefined} />
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
@@ -465,15 +473,16 @@ export default function ContestAdminPage() {
                       <button
                         onClick={async () => {
                           if (confirm(`Are you sure you want to remove ${participant.name} from this contest?\n\nThis will also delete all their photos and votes.`)) {
-                            await deleteParticipant(contestId, participant.id);
-                            const updated = await getContest(contestId);
-                            if (updated) {
-                              setContest(updated);
-                              // Update status map
-                              const newStatusMap = { ...participantSubmissionStatus };
-                              delete newStatusMap[participant.id];
-                              setParticipantSubmissionStatus(newStatusMap);
-                            }
+                            void run('Removing participant...', async () => {
+                              await deleteParticipant(contestId, participant.id);
+                              const updated = await getContest(contestId);
+                              if (updated) {
+                                setContest(updated);
+                                const newStatusMap = { ...participantSubmissionStatus };
+                                delete newStatusMap[participant.id];
+                                setParticipantSubmissionStatus(newStatusMap);
+                              }
+                            });
                           }
                         }}
                         className="text-red-600 hover:text-red-800 active:text-red-900 text-sm sm:text-base font-medium px-4 py-2 rounded-lg border border-red-300 hover:bg-red-50 active:bg-red-100 touch-manipulation min-h-[44px] whitespace-nowrap"

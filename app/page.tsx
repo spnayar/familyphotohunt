@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { registerUser, loginUser, getContestsForUser, getContestsCreatedByUser, joinContestWithCode, getUser } from '@/lib/store';
 import { getContestStageShortLabel, canShowJoinCode } from '@/lib/contest-status';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
+import { PageLoader } from '@/components/PageLoader';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 export default function Home() {
   const router = useRouter();
@@ -20,26 +23,31 @@ export default function Home() {
   const [createdContests, setCreatedContests] = useState<any[]>([]);
   const [joinCode, setJoinCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('Please wait...');
+  const [isLoadingContests, setIsLoadingContests] = useState(false);
   const [userName, setUserName] = useState<string>('');
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   useEffect(() => {
-    // Set mounted immediately
     setMounted(true);
-    
-    // Check for existing session
+
     if (typeof window !== 'undefined') {
-      try {
-        const storedUserId = sessionStorage.getItem('userId');
-        if (storedUserId) {
-          setUserId(storedUserId);
-          setIsLoggedIn(true);
-          loadUserInfo(storedUserId);
-          loadUserContests(storedUserId);
+      void (async () => {
+        try {
+          const storedUserId = sessionStorage.getItem('userId');
+          if (storedUserId) {
+            setUserId(storedUserId);
+            setIsLoggedIn(true);
+            setIsLoadingContests(true);
+            await loadUserInfo(storedUserId);
+            await loadUserContests(storedUserId);
+            setIsLoadingContests(false);
+          }
+        } catch (error) {
+          console.error('Error reading sessionStorage:', error);
+          setIsLoadingContests(false);
         }
-      } catch (error) {
-        console.error('Error reading sessionStorage:', error);
-      }
+      })();
     }
   }, []);
 
@@ -80,6 +88,7 @@ export default function Home() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoadingMessage('Creating account...');
     setLoading(true);
 
     if (!name.trim() || !email.trim() || !password.trim()) {
@@ -103,7 +112,9 @@ export default function Home() {
       setIsLoggedIn(true);
       setUserName(user.name);
       setError('');
+      setIsLoadingContests(true);
       await loadUserContests(user.id);
+      setIsLoadingContests(false);
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {
@@ -114,6 +125,7 @@ export default function Home() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoadingMessage('Logging in...');
     setLoading(true);
 
     if (!email.trim() || !password.trim()) {
@@ -134,7 +146,9 @@ export default function Home() {
         setUserId(user.id);
         setIsLoggedIn(true);
         setUserName(user.name);
+        setIsLoadingContests(true);
         await loadUserContests(user.id);
+        setIsLoadingContests(false);
         setError('');
       } else {
         console.log('Login failed: user is null');
@@ -151,6 +165,7 @@ export default function Home() {
   const handleJoinContest = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoadingMessage('Joining contest...');
     setLoading(true);
 
     if (!joinCode.trim() || !userId) {
@@ -253,8 +268,89 @@ export default function Home() {
   // The useEffect will handle sessionStorage after mount
 
   if (isLoggedIn && userId) {
+    if (isLoadingContests) {
+      return <PageLoader message="Loading your contests..." />;
+    }
+
+    const hasExistingContests = userContests.length > 0 || createdContests.length > 0;
+
+    const joinContestForm = (compact: boolean) => (
+      <div
+        className={
+          compact
+            ? 'mb-6 bg-white rounded-lg shadow-sm p-5 sm:p-6 border border-gray-200'
+            : 'mb-8 bg-white rounded-xl shadow-lg p-6 sm:p-8 border-2 border-blue-200'
+        }
+      >
+        <h2
+          className={
+            compact
+              ? 'text-base font-semibold text-gray-800 mb-1'
+              : 'text-xl sm:text-2xl font-bold text-gray-900 mb-1 text-center'
+          }
+        >
+          Have a 4 digit contest code?
+        </h2>
+        <p
+          className={
+            compact
+              ? 'text-sm text-gray-500 mb-4'
+              : 'text-sm sm:text-base text-gray-600 mb-6 text-center'
+          }
+        >
+          {compact
+            ? 'Enter a code to join another contest'
+            : 'Enter it here to join a contest someone invited you to'}
+        </p>
+        <form onSubmit={handleJoinContest}>
+          <div className={compact ? 'mb-3' : 'mb-4'}>
+            <label htmlFor="join-code" className="sr-only">
+              Contest code
+            </label>
+            <input
+              id="join-code"
+              type="text"
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+              placeholder="ABCD"
+              maxLength={4}
+              className={
+                compact
+                  ? 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center text-xl font-mono tracking-[0.25em] touch-manipulation text-gray-900 font-bold'
+                  : 'w-full px-4 py-4 sm:py-5 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center text-2xl sm:text-3xl font-mono tracking-[0.3em] touch-manipulation text-gray-900 font-bold'
+              }
+              required
+              autoFocus={!hasExistingContests}
+              disabled={loading}
+              inputMode="text"
+              autoComplete="off"
+            />
+          </div>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs sm:text-sm">
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className={
+              compact
+                ? 'w-full bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors font-medium text-sm touch-manipulation min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed'
+                : 'w-full bg-blue-600 text-white py-3 sm:py-4 rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors font-semibold text-base sm:text-lg touch-manipulation min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed'
+            }
+          >
+            {loading ? 'Joining...' : 'Join Contest'}
+          </button>
+        </form>
+      </div>
+    );
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        <LoadingOverlay show={loading} message={loadingMessage} />
         {/* User Avatar in top right corner */}
         <div className="relative">
           <div className="absolute top-4 right-4 z-10">
@@ -310,140 +406,97 @@ export default function Home() {
                 Welcome{userName ? `, ${userName.split(' ')[0]}` : ''}!
               </h1>
               <p className="text-base sm:text-lg text-gray-600">
-                Join a photo contest or pick up where you left off
+                {hasExistingContests
+                  ? 'Pick up where you left off'
+                  : 'Join a photo contest to get started'}
               </p>
             </div>
 
-            {/* Join contest — primary action */}
-            <div className="mb-8 bg-white rounded-xl shadow-lg p-6 sm:p-8 border-2 border-blue-200">
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 text-center">
-                Have a 4 digit contest code?
-              </h2>
-              <p className="text-sm sm:text-base text-gray-600 mb-6 text-center">
-                Enter it here to join a contest someone invited you to
-              </p>
-              <form onSubmit={handleJoinContest}>
-                <div className="mb-4">
-                  <label htmlFor="join-code" className="sr-only">
-                    Contest code
-                  </label>
-                  <input
-                    id="join-code"
-                    type="text"
-                    value={joinCode}
-                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                    placeholder="ABCD"
-                    maxLength={4}
-                    className="w-full px-4 py-4 sm:py-5 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center text-2xl sm:text-3xl font-mono tracking-[0.3em] touch-manipulation text-gray-900 font-bold"
-                    required
-                    autoFocus
-                    disabled={loading}
-                    inputMode="text"
-                    autoComplete="off"
-                  />
-                </div>
-
-                {error && (
-                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs sm:text-sm">
-                    {error}
+            {hasExistingContests ? (
+              <>
+                {userContests.length > 0 && (
+                  <div className="mb-8">
+                    <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-4">Your Contests</h2>
+                    <div className="space-y-4">
+                      {userContests.map((contest) => (
+                        <button
+                          key={contest.id}
+                          onClick={() => router.push(`/contest/${contest.id}`)}
+                          className="w-full text-left p-6 sm:p-8 rounded-xl shadow-xl hover:shadow-2xl transition-all border-2 border-transparent hover:border-blue-400 active:scale-98 touch-manipulation relative overflow-hidden group"
+                        >
+                          <div
+                            className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-110"
+                            style={{
+                              backgroundImage: `url(${getLocationImage(contest.location)})`,
+                              backgroundSize: 'cover',
+                              backgroundPosition: 'center',
+                              backgroundRepeat: 'no-repeat',
+                            }}
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/60 to-black/50"></div>
+                          </div>
+                          <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 -z-10"></div>
+                          <div className="relative z-10 flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="font-bold text-xl sm:text-2xl text-white mb-2 drop-shadow-lg">{contest.location}</div>
+                              <div className="text-base sm:text-lg text-white/90 drop-shadow-md">
+                                {new Date(contest.date + '-01').toLocaleDateString('en-US', {
+                                  month: 'long',
+                                  year: 'numeric',
+                                })}
+                              </div>
+                            </div>
+                            <div className="text-white text-2xl sm:text-3xl font-bold drop-shadow-lg group-hover:translate-x-2 transition-transform">
+                              →
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-blue-600 text-white py-3 sm:py-4 rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors font-semibold text-base sm:text-lg touch-manipulation min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'Joining...' : 'Join Contest'}
-                </button>
-              </form>
-            </div>
-
-            {/* Contests You've Joined */}
-            {userContests.length > 0 ? (
-              <div className="mb-8">
-                <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-4">Your Contests</h2>
-                <div className="space-y-4">
-                  {userContests.map((contest) => (
-                    <button
-                      key={contest.id}
-                      onClick={() => router.push(`/contest/${contest.id}`)}
-                      className="w-full text-left p-6 sm:p-8 rounded-xl shadow-xl hover:shadow-2xl transition-all border-2 border-transparent hover:border-blue-400 active:scale-98 touch-manipulation relative overflow-hidden group"
-                    >
-                      {/* Background Image */}
-                      <div 
-                        className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-110"
-                        style={{
-                          backgroundImage: `url(${getLocationImage(contest.location)})`,
-                          backgroundSize: 'cover',
-                          backgroundPosition: 'center',
-                          backgroundRepeat: 'no-repeat',
-                        }}
-                      >
-                        {/* Dark overlay for text readability */}
-                        <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/60 to-black/50"></div>
-                      </div>
-                      {/* Fallback background color in case image doesn't load */}
-                      <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 -z-10"></div>
-                      
-                      {/* Content */}
-                      <div className="relative z-10 flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="font-bold text-xl sm:text-2xl text-white mb-2 drop-shadow-lg">{contest.location}</div>
-                          <div className="text-base sm:text-lg text-white/90 drop-shadow-md">
-                            {new Date(contest.date + '-01').toLocaleDateString('en-US', {
-                              month: 'long',
-                              year: 'numeric'
-                            })}
-                          </div>
-                        </div>
-                        <div className="text-white text-2xl sm:text-3xl font-bold drop-shadow-lg group-hover:translate-x-2 transition-transform">
-                          →
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            {/* Contests You Created — secondary */}
-            {createdContests.length > 0 && (
-              <div className="mb-8">
-                <h2 className="text-base font-medium text-gray-500 mb-3">Contests you&apos;re organizing</h2>
-                <div className="space-y-2">
-                  {createdContests.map((contest) => (
-                    <button
-                      key={contest.id}
-                      onClick={() => router.push(`/admin/contest/${contest.id}`)}
-                      className="w-full text-left p-4 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow border border-gray-200 hover:border-gray-300 active:scale-98 touch-manipulation"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="font-medium text-sm sm:text-base text-gray-900 mb-0.5">{contest.location}</div>
-                          <div className="text-xs text-gray-500">
-                            {new Date(contest.date + '-01').toLocaleDateString('en-US', {
-                              month: 'long',
-                              year: 'numeric'
-                            })}
-                          </div>
-                          {canShowJoinCode(contest.status) && (
-                            <div className="text-xs text-gray-400 mt-1">
-                              Code: <span className="font-mono font-semibold">{contest.joinCode}</span>
+                {createdContests.length > 0 && (
+                  <div className="mb-8">
+                    <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-4">Contests you&apos;re organizing</h2>
+                    <div className="space-y-3">
+                      {createdContests.map((contest) => (
+                        <button
+                          key={contest.id}
+                          onClick={() => router.push(`/admin/contest/${contest.id}`)}
+                          className="w-full text-left p-4 sm:p-5 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border border-gray-200 hover:border-green-300 active:scale-98 touch-manipulation"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="font-semibold text-base sm:text-lg text-gray-900 mb-1">{contest.location}</div>
+                              <div className="text-xs sm:text-sm text-gray-600 mb-1">
+                                {new Date(contest.date + '-01').toLocaleDateString('en-US', {
+                                  month: 'long',
+                                  year: 'numeric',
+                                })}
+                              </div>
+                              {canShowJoinCode(contest.status) && (
+                                <div className="text-xs text-gray-500">
+                                  Join Code: <span className="font-mono font-bold">{contest.joinCode}</span>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                          {getContestStageShortLabel(contest.status)}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
+                            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                              {getContestStageShortLabel(contest.status)}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {joinContestForm(true)}
+              </>
+            ) : (
+              joinContestForm(false)
             )}
 
-            {/* Create / manage — de-emphasized */}
             <div className="text-center pt-2 pb-4">
               <p className="text-sm text-gray-500 mb-2">Running your own contest?</p>
               <Link
@@ -462,6 +515,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-400 via-blue-500 to-purple-600 flex items-center justify-center p-4 relative overflow-hidden">
+      <LoadingOverlay show={loading} message={loadingMessage} />
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden">
         {/* Floating vacation photos of famous landmarks */}

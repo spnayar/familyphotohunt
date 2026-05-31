@@ -26,6 +26,10 @@ import {
   isSetupStage,
   normalizeContestStatus,
 } from '@/lib/contest-status';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
+import { PageLoader } from '@/components/PageLoader';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { useLoadingAction } from '@/lib/use-loading-action';
 
 export default function ContestPage() {
   const params = useParams();
@@ -36,11 +40,11 @@ export default function ContestPage() {
   const [participant, setParticipant] = useState<Participant | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [isPageLoading, setIsPageLoading] = useState(true);
+  const { loadingMessage, isLoading, run } = useLoadingAction();
   const [userName, setUserName] = useState<string>('');
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [readyToSubmit, setReadyToSubmit] = useState(false);
-  const [draggedPhoto, setDraggedPhoto] = useState<string | null>(null);
   const [selectedPhotoForView, setSelectedPhotoForView] = useState<Photo | null>(null);
 
   useEffect(() => {
@@ -76,6 +80,7 @@ export default function ContestPage() {
         return categoryPhotos.some(p => p.submitted);
       });
       setReadyToSubmit(allSubmitted);
+      setIsPageLoading(false);
     };
     loadData();
   }, [contestId, router]);
@@ -98,10 +103,16 @@ export default function ContestPage() {
     const file = e.target.files?.[0];
     if (!file || !participant) return;
 
-    setUploading(true);
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const photoUrl = reader.result as string;
+    e.target.value = '';
+
+    await run('Uploading photo...', async () => {
+      const photoUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Failed to read photo'));
+        reader.readAsDataURL(file);
+      });
+
       try {
         const newPhoto = await addPhoto({
           contestId,
@@ -111,150 +122,90 @@ export default function ContestPage() {
           fileName: file.name,
           submitted: false,
         });
-        setPhotos([...photos, newPhoto]);
+        setPhotos((prev) => [...prev, newPhoto]);
       } catch (error) {
         console.error('Error uploading photo:', error);
         alert('Failed to upload photo. Please try again.');
-      } finally {
-        setUploading(false);
       }
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleDragStart = (e: React.DragEvent, photoId: string) => {
-    setDraggedPhoto(photoId);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDrop = async (e: React.DragEvent, targetPhotoId: string, categoryId: string) => {
-    e.preventDefault();
-    if (!draggedPhoto || draggedPhoto === targetPhotoId) {
-      setDraggedPhoto(null);
-      return;
-    }
-
-    const categoryPhotos = getDraftPhotosForCategory(categoryId);
-    const draggedIndex = categoryPhotos.findIndex(p => p.id === draggedPhoto);
-    const targetIndex = categoryPhotos.findIndex(p => p.id === targetPhotoId);
-
-    if (draggedIndex === -1 || targetIndex === -1) {
-      setDraggedPhoto(null);
-      return;
-    }
-
-    // Calculate new ranks
-    const newRanks: { id: string; rank: number }[] = [];
-    const photosToUpdate = [...categoryPhotos];
-    
-    // Remove dragged photo from array
-    const [draggedPhotoObj] = photosToUpdate.splice(draggedIndex, 1);
-    // Insert at new position
-    photosToUpdate.splice(targetIndex, 0, draggedPhotoObj);
-
-    // Assign new ranks
-    photosToUpdate.forEach((photo, index) => {
-      newRanks.push({ id: photo.id, rank: index + 1 });
     });
-
-    // Update all photos in the category
-    for (const { id, rank } of newRanks) {
-      await updatePhoto(id, { rank });
-    }
-
-    // Reload photos
-    if (participant) {
-      const updatedPhotos = await getPhotosByParticipant(participant.id);
-      setPhotos(updatedPhotos);
-    }
-
-    setDraggedPhoto(null);
   };
 
   const movePhotoInCategory = async (categoryId: string, photoId: string, direction: 'up' | 'down') => {
     if (!participant) return;
 
-    const categoryPhotos = getDraftPhotosForCategory(categoryId);
-    const currentIndex = categoryPhotos.findIndex((p) => p.id === photoId);
+    await run('Updating photo order...', async () => {
+      const categoryPhotos = getDraftPhotosForCategory(categoryId);
+      const currentIndex = categoryPhotos.findIndex((p) => p.id === photoId);
 
-    if (currentIndex === -1) return;
+      if (currentIndex === -1) return;
 
-    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (targetIndex < 0 || targetIndex >= categoryPhotos.length) return;
+      const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+      if (targetIndex < 0 || targetIndex >= categoryPhotos.length) return;
 
-    const photosToUpdate = [...categoryPhotos];
-    const [movedPhoto] = photosToUpdate.splice(currentIndex, 1);
-    photosToUpdate.splice(targetIndex, 0, movedPhoto);
+      const photosToUpdate = [...categoryPhotos];
+      const [movedPhoto] = photosToUpdate.splice(currentIndex, 1);
+      photosToUpdate.splice(targetIndex, 0, movedPhoto);
 
-    const newRanks = photosToUpdate.map((photo, index) => ({
-      id: photo.id,
-      rank: index + 1,
-    }));
+      const newRanks = photosToUpdate.map((photo, index) => ({
+        id: photo.id,
+        rank: index + 1,
+      }));
 
-    for (const { id, rank } of newRanks) {
-      await updatePhoto(id, { rank });
-    }
+      for (const { id, rank } of newRanks) {
+        await updatePhoto(id, { rank });
+      }
 
-    const updatedPhotos = await getPhotosByParticipant(participant.id);
-    setPhotos(updatedPhotos);
+      const updatedPhotos = await getPhotosByParticipant(participant.id);
+      setPhotos(updatedPhotos);
+    });
   };
 
   const handleReadyToSubmitToggle = async (checked: boolean) => {
-    if (checked) {
-      // Check if all categories have at least one photo
-      const categoriesWithPhotos = contest?.categories.filter(category => {
-        const categoryPhotos = photos.filter(p => p.categoryId === category.id && !p.submitted);
-        return categoryPhotos.length > 0;
-      });
+    await run(checked ? 'Submitting photos...' : 'Updating submission...', async () => {
+      if (checked) {
+        const categoriesWithPhotos = contest?.categories.filter(category => {
+          const categoryPhotos = photos.filter(p => p.categoryId === category.id && !p.submitted);
+          return categoryPhotos.length > 0;
+        });
 
-      if (categoriesWithPhotos?.length !== contest?.categories.length) {
-        alert('Please add at least one photo to all categories before submitting.');
-        return;
-      }
+        if (categoriesWithPhotos?.length !== contest?.categories.length) {
+          alert('Please add at least one photo to all categories before submitting.');
+          return;
+        }
 
-      // Submit top-ranked photo for each category
-      for (const category of contest?.categories || []) {
-        const categoryPhotos = photos.filter(p => p.categoryId === category.id && !p.submitted);
-        const topPhoto = categoryPhotos.find(p => p.rank === 1) || categoryPhotos[0];
-        
-        if (topPhoto) {
-          // Mark this photo as submitted
-          await updatePhoto(topPhoto.id, { submitted: true });
-          
-          // Mark all other photos in this category as not submitted
-          for (const photo of categoryPhotos) {
-            if (photo.id !== topPhoto.id) {
-              await updatePhoto(photo.id, { submitted: false });
+        for (const category of contest?.categories || []) {
+          const categoryPhotos = photos.filter(p => p.categoryId === category.id && !p.submitted);
+          const topPhoto = categoryPhotos.find(p => p.rank === 1) || categoryPhotos[0];
+
+          if (topPhoto) {
+            await updatePhoto(topPhoto.id, { submitted: true });
+
+            for (const photo of categoryPhotos) {
+              if (photo.id !== topPhoto.id) {
+                await updatePhoto(photo.id, { submitted: false });
+              }
             }
           }
         }
+
+        if (participant) {
+          const updatedPhotos = await getPhotosByParticipant(participant.id);
+          setPhotos(updatedPhotos);
+        }
+      } else {
+        const submittedPhotos = photos.filter(p => p.submitted);
+        for (const photo of submittedPhotos) {
+          await updatePhoto(photo.id, { submitted: false });
+        }
+
+        if (participant) {
+          const updatedPhotos = await getPhotosByParticipant(participant.id);
+          setPhotos(updatedPhotos);
+        }
       }
 
-      // Reload photos
-      if (participant) {
-        const updatedPhotos = await getPhotosByParticipant(participant.id);
-        setPhotos(updatedPhotos);
-      }
-    } else {
-      // Unsubmit all photos
-      const submittedPhotos = photos.filter(p => p.submitted);
-      for (const photo of submittedPhotos) {
-        await updatePhoto(photo.id, { submitted: false });
-      }
-
-      // Reload photos
-      if (participant) {
-        const updatedPhotos = await getPhotosByParticipant(participant.id);
-        setPhotos(updatedPhotos);
-      }
-    }
-
-    setReadyToSubmit(checked);
+      setReadyToSubmit(checked);
+    });
   };
 
   const getSubmittedPhotoForCategory = (categoryId: string): Photo | undefined => {
@@ -342,8 +293,8 @@ export default function ContestPage() {
     </div>
   );
 
-  if (!contest || !participant) {
-    return <div className="p-8">Loading...</div>;
+  if (isPageLoading || !contest || !participant) {
+    return <PageLoader message="Loading contest..." />;
   }
 
   if (isVotingMode) {
@@ -366,6 +317,7 @@ export default function ContestPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <LoadingOverlay show={isLoading} message={loadingMessage ?? undefined} />
       <UserAvatar />
 
       <div className="container mx-auto px-4 py-4 sm:py-8">
@@ -384,7 +336,7 @@ export default function ContestPage() {
             <p className="text-sm sm:text-base text-gray-600 mb-4">
               {isSetup
                 ? 'The organizer is preparing this contest. Photo uploads will open when the contest moves to Open Photo Collection.'
-                : 'Upload photos for each category, drag and drop to rank them (top photo will be submitted), then toggle "Ready to submit" when done.'}
+                : 'Upload photos for each category, use the arrows to rank them (top photo will be submitted), then toggle "Ready to submit" when done.'}
             </p>
 
             {isSetup && (
@@ -412,7 +364,8 @@ export default function ContestPage() {
                 <button
                   type="button"
                   onClick={() => handleReadyToSubmitToggle(!readyToSubmit)}
-                  className={`relative inline-flex items-center cursor-pointer focus:outline-none focus:ring-4 focus:ring-blue-300 rounded-full ml-4`}
+                  disabled={isLoading}
+                  className={`relative inline-flex items-center cursor-pointer focus:outline-none focus:ring-4 focus:ring-blue-300 rounded-full ml-4 disabled:opacity-50`}
                   role="switch"
                   aria-checked={readyToSubmit}
                 >
@@ -478,17 +431,20 @@ export default function ContestPage() {
                         />
                       </div>
                       <button
-                        onClick={async () => {
+                        onClick={() => {
                           if (confirm('Do you want to change your submission? This will turn off "Ready to Submit" and you can reorder your photos.')) {
-                            await updatePhoto(submittedPhoto.id, { submitted: false });
-                            setReadyToSubmit(false);
-                            if (participant) {
-                              const updatedPhotos = await getPhotosByParticipant(participant.id);
-                              setPhotos(updatedPhotos);
-                            }
+                            void run('Updating submission...', async () => {
+                              await updatePhoto(submittedPhoto.id, { submitted: false });
+                              setReadyToSubmit(false);
+                              if (participant) {
+                                const updatedPhotos = await getPhotosByParticipant(participant.id);
+                                setPhotos(updatedPhotos);
+                              }
+                            });
                           }
                         }}
-                        className="mt-2 text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        disabled={isLoading}
+                        className="mt-2 text-blue-600 hover:text-blue-800 text-sm font-medium disabled:opacity-50"
                       >
                         Change Submission
                       </button>
@@ -517,18 +473,27 @@ export default function ContestPage() {
                             type="file"
                             accept="image/*"
                             onChange={(e) => handlePhotoUpload(e, category.id)}
-                            disabled={uploading}
+                            disabled={isLoading}
                             className="hidden"
                             id={`photo-input-${category.id}`}
                           />
                           <button
                             type="button"
                             onClick={() => document.getElementById(`photo-input-${category.id}`)?.click()}
-                            disabled={uploading}
+                            disabled={isLoading}
                             className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors font-medium text-base touch-manipulation min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                           >
-                            <span className="text-xl">📷</span>
-                            <span>{uploading ? 'Uploading...' : 'Take or Choose Photo'}</span>
+                            {isLoading ? (
+                              <>
+                                <LoadingSpinner size="sm" className="border-white border-t-transparent" />
+                                <span>Uploading...</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-xl">📷</span>
+                                <span>Take or Choose Photo</span>
+                              </>
+                            )}
                           </button>
                           <p className="text-xs text-gray-500 mt-2 text-center">
                             Tap the button above to take a new photo with your camera or choose from your photo library
@@ -545,11 +510,11 @@ export default function ContestPage() {
                   {!hasSubmitted && draftPhotos.length > 0 && (
                     <div className="mb-6">
                       <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3">
-                        Your Photos {isCollection ? '- Drag to Rank (Top photo will be submitted)' : ''}
+                        Your Photos {isCollection ? '- Rank with arrows (top photo will be submitted)' : ''}
                       </h3>
                       {isCollection && (
                         <p className="text-sm text-gray-600 mb-4">
-                          Drag and drop photos to reorder them. The photo at the top will be submitted when you toggle "Ready to Submit".
+                          Use the move up and move down buttons to reorder photos. The photo at the top will be submitted when you toggle &quot;Ready to Submit&quot;.
                         </p>
                       )}
                       {!isCollection && (
@@ -563,15 +528,11 @@ export default function ContestPage() {
                           return (
                             <div
                               key={photo.id}
-                              draggable={isCollection}
-                              onDragStart={(e) => handleDragStart(e, photo.id)}
-                              onDragOver={handleDragOver}
-                              onDrop={(e) => handleDrop(e, photo.id, category.id)}
-                              className={`flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 rounded-lg border-2 transition-all ${isCollection ? 'cursor-move' : ''} ${
+                              className={`flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 rounded-lg border-2 transition-all ${
                                 isTopRanked && isCollection
                                   ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-400 shadow-lg'
                                   : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-                              } ${draggedPhoto === photo.id ? 'opacity-50' : ''}`}
+                              }`}
                             >
                               <div className="relative w-full sm:w-40 h-56 sm:h-40 flex-shrink-0">
                                 <img
@@ -599,28 +560,28 @@ export default function ContestPage() {
                                       </p>
                                     )}
                                     <p className="text-xs text-gray-500 mt-1">
-                                      Drag or use the arrows to reorder
+                                      Use the arrows to reorder
                                     </p>
                                     <div className="mt-2 flex gap-2">
                                       <button
                                         type="button"
-                                        disabled={index === 0 || uploading}
-                                        onClick={async (e) => {
+                                        disabled={index === 0 || isLoading}
+                                        onClick={(e) => {
                                           e.stopPropagation();
-                                          await movePhotoInCategory(category.id, photo.id, 'up');
+                                          void movePhotoInCategory(category.id, photo.id, 'up');
                                         }}
-                                        className="px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs sm:text-sm text-gray-800 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+                                        className="px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs sm:text-sm text-gray-800 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation min-h-[44px]"
                                       >
                                         ↑ Move Up
                                       </button>
                                       <button
                                         type="button"
-                                        disabled={index === draftPhotos.length - 1 || uploading}
-                                        onClick={async (e) => {
+                                        disabled={index === draftPhotos.length - 1 || isLoading}
+                                        onClick={(e) => {
                                           e.stopPropagation();
-                                          await movePhotoInCategory(category.id, photo.id, 'down');
+                                          void movePhotoInCategory(category.id, photo.id, 'down');
                                         }}
-                                        className="px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs sm:text-sm text-gray-800 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+                                        className="px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs sm:text-sm text-gray-800 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation min-h-[44px]"
                                       >
                                         ↓ Move Down
                                       </button>
@@ -630,17 +591,17 @@ export default function ContestPage() {
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       if (confirm('Delete this photo?')) {
-                                        const handleDelete = async () => {
+                                        void run('Deleting photo...', async () => {
                                           await deletePhoto(photo.id);
                                           if (participant) {
                                             const updatedPhotos = await getPhotosByParticipant(participant.id);
                                             setPhotos(updatedPhotos);
                                           }
-                                        };
-                                        handleDelete();
+                                        });
                                       }
                                     }}
-                                    className="w-full sm:w-auto text-red-600 hover:text-red-800 active:text-red-900 px-4 py-2 rounded-lg border border-red-300 hover:bg-red-50 touch-manipulation min-h-[44px] text-sm sm:text-base font-medium"
+                                    disabled={isLoading}
+                                    className="w-full sm:w-auto text-red-600 hover:text-red-800 active:text-red-900 px-4 py-2 rounded-lg border border-red-300 hover:bg-red-50 touch-manipulation min-h-[44px] text-sm sm:text-base font-medium disabled:opacity-50"
                                   >
                                     Delete
                                   </button>
@@ -721,9 +682,10 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
   const [selectedVotes, setSelectedVotes] = useState<Record<string, { first?: string; second?: string }>>({});
   const [allPhotos, setAllPhotos] = useState<Photo[]>([]);
   const [selectedPhotoForView, setSelectedPhotoForView] = useState<Photo | null>(null);
+  const [isPageLoading, setIsPageLoading] = useState(true);
+  const { loadingMessage, isLoading, run } = useLoadingAction();
 
   useEffect(() => {
-    // Load all submitted photos
     const loadSubmittedPhotos = async () => {
       const submitted: Photo[] = [];
       for (const category of contest.categories) {
@@ -737,9 +699,7 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
       }
       setAllPhotos(submitted);
     };
-    loadSubmittedPhotos();
 
-    // Load existing votes
     const loadVotes = async () => {
       const votes: Record<string, { first?: string; second?: string }> = {};
       for (const category of contest.categories) {
@@ -752,7 +712,13 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
       }
       setSelectedVotes(votes);
     };
-    loadVotes();
+
+    const loadData = async () => {
+      await Promise.all([loadSubmittedPhotos(), loadVotes()]);
+      setIsPageLoading(false);
+    };
+
+    void loadData();
   }, [contest, participant]);
 
   const getPhotosForCategory = (categoryId: string): Photo[] => {
@@ -762,14 +728,12 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
   };
 
   const handleVote = async (categoryId: string, photoId: string, rank: number) => {
-    // Check if this is the user's own photo
     const photo = allPhotos.find(p => p.id === photoId);
     if (photo && photo.participantId === participant.id) {
       alert("You cannot vote for your own photo!");
       return;
     }
 
-    // Check if this photo is already selected for the other rank
     const currentVotes = selectedVotes[categoryId] || {};
     if (rank === 1 && currentVotes.second === photoId) {
       alert("You've already selected this photo for honorable mention. Please choose a different photo for 1st place.");
@@ -780,21 +744,22 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
       return;
     }
 
-    setSelectedVotes({
-      ...selectedVotes,
-      [categoryId]: {
-        ...currentVotes,
-        [rank === 1 ? 'first' : 'second']: photoId,
-      },
-    });
-    
-    // Save vote (addVote automatically replaces existing votes of the same rank)
-    await addVote({
-      contestId: contest.id,
-      categoryId,
-      voterId: participant.id,
-      photoId,
-      rank,
+    await run('Saving vote...', async () => {
+      setSelectedVotes({
+        ...selectedVotes,
+        [categoryId]: {
+          ...currentVotes,
+          [rank === 1 ? 'first' : 'second']: photoId,
+        },
+      });
+
+      await addVote({
+        contestId: contest.id,
+        categoryId,
+        voterId: participant.id,
+        photoId,
+        rank,
+      });
     });
   };
 
@@ -803,8 +768,13 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
     return votes?.first && votes?.second;
   });
 
+  if (isPageLoading) {
+    return <PageLoader message="Loading voting..." />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <LoadingOverlay show={isLoading} message={loadingMessage ?? undefined} />
       <div className="container mx-auto px-4 py-4 sm:py-8">
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
@@ -905,8 +875,9 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
                           {!isDisabled && (
                             <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 p-2 flex gap-2">
                               <button
-                                onClick={() => handleVote(category.id, photo.id, 1)}
-                                className={`flex-1 py-2 px-2 rounded text-xs sm:text-sm font-medium touch-manipulation min-h-[44px] ${
+                                onClick={() => void handleVote(category.id, photo.id, 1)}
+                                disabled={isLoading}
+                                className={`flex-1 py-2 px-2 rounded text-xs sm:text-sm font-medium touch-manipulation min-h-[44px] disabled:opacity-50 ${
                                   isFirst
                                     ? 'bg-blue-500 text-white'
                                     : 'bg-white text-blue-600 active:bg-blue-100'
@@ -915,8 +886,9 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
                                 {isFirst ? '1st ✓' : 'Vote 1st'}
                               </button>
                               <button
-                                onClick={() => handleVote(category.id, photo.id, 2)}
-                                className={`flex-1 py-2 px-2 rounded text-xs sm:text-sm font-medium touch-manipulation min-h-[44px] ${
+                                onClick={() => void handleVote(category.id, photo.id, 2)}
+                                disabled={isLoading}
+                                className={`flex-1 py-2 px-2 rounded text-xs sm:text-sm font-medium touch-manipulation min-h-[44px] disabled:opacity-50 ${
                                   isSecond
                                     ? 'bg-purple-500 text-white'
                                     : 'bg-white text-purple-600 active:bg-purple-100'

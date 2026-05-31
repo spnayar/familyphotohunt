@@ -11,6 +11,7 @@ import {
   getParticipant,
 } from '@/lib/store';
 import { Contest, Category } from '@/types';
+import { PageLoader } from '@/components/PageLoader';
 
 export default function ResultsPage() {
   const params = useParams();
@@ -144,13 +145,7 @@ export default function ResultsPage() {
   };
 
   if (isLoading || !contest) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-gray-600 text-lg">Loading...</div>
-        </div>
-      </div>
-    );
+    return <PageLoader message="Loading results..." />;
   }
 
   return (

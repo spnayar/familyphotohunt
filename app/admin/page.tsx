@@ -6,6 +6,10 @@ import Link from 'next/link';
 import { getAllContests, createContest, deleteContest, getContestsCreatedByUser } from '@/lib/store';
 import { getContestStageShortLabel, getStatusBadgeClasses } from '@/lib/contest-status';
 import { Contest } from '@/types';
+import { PageLoader } from '@/components/PageLoader';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { useLoadingAction } from '@/lib/use-loading-action';
 
 function getCurrentMonthYear(): string {
   const now = new Date();
@@ -25,6 +29,7 @@ export default function AdminPage() {
   });
 
   const [userId, setUserId] = useState<string | null>(null);
+  const { loadingMessage, isLoading: isActionLoading, run } = useLoadingAction();
 
   useEffect(() => {
     const loadContests = async () => {
@@ -36,10 +41,9 @@ export default function AdminPage() {
       }
 
       setUserId(storedUserId);
-      setIsLoading(false);
-      // Only load contests created by this user
       const loadedContests = await getContestsCreatedByUser(storedUserId);
       setContests(loadedContests);
+      setIsLoading(false);
     };
     
     loadContests();
@@ -54,14 +58,16 @@ export default function AdminPage() {
 
     try {
       const storedUserId = sessionStorage.getItem('userId');
-      const newContest = await createContest({
-        location: formData.location,
-        date: formData.date,
-        categories: [],
-        participants: [],
-        status: 'setup',
-        creatorId: storedUserId || undefined,
-      });
+      const newContest = await run('Creating contest...', () =>
+        createContest({
+          location: formData.location,
+          date: formData.date,
+          categories: [],
+          participants: [],
+          status: 'setup',
+          creatorId: storedUserId || undefined,
+        })
+      );
 
       router.push(`/admin/contest/${newContest.id}`);
     } catch (error: any) {
@@ -75,14 +81,16 @@ export default function AdminPage() {
     }
 
     try {
-      const success = await deleteContest(contestId);
-      if (success) {
-        const updatedContests = await getAllContests();
-        setContests(updatedContests);
-        alert('Contest deleted successfully');
-      } else {
-        alert('Failed to delete contest');
-      }
+      await run('Deleting contest...', async () => {
+        const success = await deleteContest(contestId);
+        if (success) {
+          const updatedContests = await getAllContests();
+          setContests(updatedContests);
+          alert('Contest deleted successfully');
+        } else {
+          alert('Failed to delete contest');
+        }
+      });
     } catch (error: any) {
       alert(`Failed to delete contest: ${error.message}`);
     }
@@ -94,17 +102,12 @@ export default function AdminPage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-gray-600 text-lg">Loading...</div>
-        </div>
-      </div>
-    );
+    return <PageLoader message="Loading admin dashboard..." />;
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <LoadingOverlay show={isActionLoading} message={loadingMessage ?? undefined} />
       <div className="container mx-auto px-4 py-4 sm:py-8">
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
@@ -170,9 +173,17 @@ export default function AdminPage() {
                 </div>
                 <button
                   type="submit"
-                  className="w-full sm:w-auto bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors touch-manipulation min-h-[44px] text-base sm:text-lg font-semibold"
+                  disabled={isActionLoading}
+                  className="w-full sm:w-auto bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors touch-manipulation min-h-[44px] text-base sm:text-lg font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  Create Contest
+                  {isActionLoading ? (
+                    <>
+                      <LoadingSpinner size="sm" className="border-white border-t-transparent" />
+                      Creating...
+                    </>
+                  ) : (
+                    'Create Contest'
+                  )}
                 </button>
               </form>
             </div>
