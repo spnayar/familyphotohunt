@@ -3,9 +3,17 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { loadContestResults, CategoryWinner } from '@/lib/contest-results-data';
-import { getContestPhotosDownloadUrl } from '@/lib/photo-download';
+import {
+  buildPhotoDownloadItem,
+  getContestPhotosDownloadUrl,
+} from '@/lib/photo-download';
 import { Contest, Photo } from '@/types';
 import { PageLoader } from '@/components/PageLoader';
+import { PhotoDownloadButton } from '@/components/PhotoDownloadButton';
+import { BulkPhotoSaveButton } from '@/components/BulkPhotoSaveButton';
+import { isMobileSaveContext } from '@/lib/save-photo-client';
+
+const MAX_BULK_SHARE_PHOTOS = 30;
 
 type ContestResultsDisplayProps = {
   contest: Contest;
@@ -44,6 +52,37 @@ export function ContestResultsDisplay({
     return <PageLoader message="Loading results..." />;
   }
 
+  const categoryNameById = Object.fromEntries(contest.categories.map((c) => [c.id, c.name]));
+  const participantNameById = Object.fromEntries(contest.participants.map((p) => [p.id, p.name]));
+
+  const allSubmittedPhotos = contest.categories.flatMap((c) => categoryPhotos[c.id] || []);
+  const allDownloadItems = allSubmittedPhotos.map((photo) =>
+    buildPhotoDownloadItem(
+      contestId,
+      photo,
+      categoryNameById[photo.categoryId] || 'Uncategorized',
+      participantNameById[photo.participantId] || 'Unknown'
+    )
+  );
+
+  const winnerDownloadItems = contest.categories.flatMap((category) => {
+    const winners = results[category.id] || [];
+    const photos = categoryPhotos[category.id] || [];
+    return winners
+      .map((winner) => photos.find((p) => p.id === winner.photoId))
+      .filter((photo): photo is Photo => !!photo)
+      .map((photo) =>
+        buildPhotoDownloadItem(
+          contestId,
+          photo,
+          category.name,
+          participantNameById[photo.participantId] || 'Unknown'
+        )
+      );
+  });
+
+  const mobile = isMobileSaveContext();
+
   return (
     <div className="container mx-auto px-4 py-4 sm:py-8">
       <div className="max-w-6xl mx-auto">
@@ -63,16 +102,41 @@ export function ContestResultsDisplay({
           </p>
 
           <div className="mt-4 flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3">
-            <a href={getContestPhotosDownloadUrl(contestId)} className={downloadLinkClass}>
-              Download all photos (.zip)
-            </a>
-            <a
-              href={getContestPhotosDownloadUrl(contestId, { scope: 'winners' })}
-              className={downloadLinkSecondaryClass}
-            >
-              Download all winners (.zip)
-            </a>
+            {mobile && allDownloadItems.length > 0 && allDownloadItems.length <= MAX_BULK_SHARE_PHOTOS ? (
+              <BulkPhotoSaveButton
+                items={allDownloadItems}
+                zipFallbackUrl={getContestPhotosDownloadUrl(contestId)}
+                zipLabel="Download all photos (.zip)"
+                saveLabel={`Save all ${allDownloadItems.length} photos to Photos`}
+                className={downloadLinkClass}
+              />
+            ) : (
+              <a href={getContestPhotosDownloadUrl(contestId)} className={downloadLinkClass}>
+                {mobile ? 'Download all photos (.zip to Files)' : 'Download all photos (.zip)'}
+              </a>
+            )}
+            {mobile && winnerDownloadItems.length > 0 ? (
+              <BulkPhotoSaveButton
+                items={winnerDownloadItems}
+                zipFallbackUrl={getContestPhotosDownloadUrl(contestId, { scope: 'winners' })}
+                zipLabel="Download all winners (.zip)"
+                saveLabel={`Save ${winnerDownloadItems.length} winner${winnerDownloadItems.length !== 1 ? 's' : ''} to Photos`}
+                className={downloadLinkSecondaryClass}
+              />
+            ) : (
+              <a
+                href={getContestPhotosDownloadUrl(contestId, { scope: 'winners' })}
+                className={downloadLinkSecondaryClass}
+              >
+                Download all winners (.zip)
+              </a>
+            )}
           </div>
+          {mobile && allDownloadItems.length > MAX_BULK_SHARE_PHOTOS && (
+            <p className="mt-2 text-xs text-gray-600">
+              Too many photos to save at once — use Save to Photos under each image, or download the zip to the Files app.
+            </p>
+          )}
         </div>
 
         <div className="space-y-8">
@@ -112,12 +176,17 @@ export function ContestResultsDisplay({
                                   className="w-full h-auto rounded-lg"
                                 />
                               </div>
-                              <a
-                                href={getContestPhotosDownloadUrl(contestId, { photoId: winnerPhoto.id })}
-                                className="inline-block mt-3 text-sm font-medium text-blue-600 hover:text-blue-800 touch-manipulation min-h-[44px] leading-[44px]"
-                              >
-                                Download full size
-                              </a>
+                              <PhotoDownloadButton
+                                downloadUrl={getContestPhotosDownloadUrl(contestId, {
+                                  photoId: winnerPhoto.id,
+                                })}
+                                filename={buildPhotoDownloadItem(
+                                  contestId,
+                                  winnerPhoto,
+                                  category.name,
+                                  participantNameById[winnerPhoto.participantId] || 'Unknown'
+                                ).filename}
+                              />
                             </>
                           )}
                         </div>
@@ -160,12 +229,16 @@ export function ContestResultsDisplay({
                                 ? `${voteCount} vote${voteCount !== 1 ? 's' : ''}`
                                 : 'No votes'}
                             </div>
-                            <a
-                              href={getContestPhotosDownloadUrl(contestId, { photoId: photo.id })}
+                            <PhotoDownloadButton
+                              downloadUrl={getContestPhotosDownloadUrl(contestId, { photoId: photo.id })}
+                              filename={buildPhotoDownloadItem(
+                                contestId,
+                                photo,
+                                category.name,
+                                participantNameById[photo.participantId] || 'Unknown'
+                              ).filename}
                               className="inline-block mt-2 text-xs font-medium text-blue-600 hover:text-blue-800 touch-manipulation min-h-[36px] leading-9"
-                            >
-                              Download full size
-                            </a>
+                            />
                           </div>
                         </div>
                       );

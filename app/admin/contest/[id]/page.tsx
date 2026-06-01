@@ -322,20 +322,25 @@ export default function ContestAdminPage() {
                   🎬 Start Winner Reveal
                 </Link>
               </div>
-              <div className="mt-8 pt-6 border-t border-gray-200 flex flex-wrap justify-center gap-3">
-                <a
-                  href={getContestPhotosDownloadUrl(contestId)}
-                  className="text-sm text-blue-700 hover:text-blue-900 underline touch-manipulation"
-                >
-                  Download all photos
-                </a>
-                <span className="text-gray-300" aria-hidden="true">·</span>
-                <a
-                  href={getContestPhotosDownloadUrl(contestId, { scope: 'winners' })}
-                  className="text-sm text-blue-700 hover:text-blue-900 underline touch-manipulation"
-                >
-                  Download winners
-                </a>
+              <div className="mt-8 pt-6 border-t border-gray-200 text-center">
+                <p className="text-sm text-gray-600 mb-2">
+                  On a phone, open <strong>View Results</strong> and tap <strong>Save to Photos</strong> on any image.
+                </p>
+                <div className="flex flex-wrap justify-center gap-3">
+                  <a
+                    href={getContestPhotosDownloadUrl(contestId)}
+                    className="text-sm text-blue-700 hover:text-blue-900 underline touch-manipulation"
+                  >
+                    Download all photos (.zip)
+                  </a>
+                  <span className="text-gray-300" aria-hidden="true">·</span>
+                  <a
+                    href={getContestPhotosDownloadUrl(contestId, { scope: 'winners' })}
+                    className="text-sm text-blue-700 hover:text-blue-900 underline touch-manipulation"
+                  >
+                    Download winners (.zip)
+                  </a>
+                </div>
               </div>
             </div>
           )}

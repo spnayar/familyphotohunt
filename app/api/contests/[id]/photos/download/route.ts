@@ -81,10 +81,13 @@ export async function GET(
         photo.fileName
       );
 
+      const contentType = getContentType(photo.fileName, photo.url);
       return new NextResponse(new Uint8Array(buffer), {
         headers: {
-          'Content-Type': getContentType(photo.fileName, photo.url),
-          'Content-Disposition': `attachment; filename="${downloadName}"`,
+          'Content-Type': contentType,
+          'Content-Disposition': `inline; filename="${downloadName}"`,
+          'Content-Length': String(buffer.length),
+          'Cache-Control': 'private, max-age=3600',
         },
       });
     }

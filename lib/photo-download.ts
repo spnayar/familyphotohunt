@@ -15,6 +15,18 @@ export function buildPhotoDownloadFilename(
   return `${category}_${participant}${extension}`;
 }
 
+export function buildPhotoDownloadItem(
+  contestId: string,
+  photo: { id: string; fileName: string },
+  categoryName: string,
+  participantName: string
+) {
+  return {
+    downloadUrl: getContestPhotosDownloadUrl(contestId, { photoId: photo.id }),
+    filename: buildPhotoDownloadFilename(categoryName, participantName, photo.fileName),
+  };
+}
+
 export function getContestPhotosDownloadUrl(
   contestId: string,
   options?: { scope?: 'all' | 'winners'; photoId?: string }
