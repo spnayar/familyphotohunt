@@ -328,9 +328,12 @@ function LoginContent() {
           </form>
         )}
 
-        <div className="mt-6 pt-4 border-t border-gray-200 text-center">
+        <div className="mt-6 pt-4 border-t border-gray-200 text-center space-y-3">
           <Link href="/" className="text-sm text-gray-600 hover:text-blue-700">
             ← Back to enter a different code
+          </Link>
+          <Link href="/help/participants" className="block text-sm text-gray-600 hover:text-blue-700">
+            Help guide for participants
           </Link>
         </div>
       </div>

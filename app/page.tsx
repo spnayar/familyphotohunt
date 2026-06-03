@@ -358,9 +358,16 @@ function HomeContent() {
                     <div className="px-4 py-2 border-b border-gray-200">
                       <p className="text-sm font-medium text-gray-900">{userName || 'User'}</p>
                     </div>
+                    <Link
+                      href="/help/participants"
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      Help guide
+                    </Link>
                     <button
                       onClick={handleLogout}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors border-t border-gray-200"
                     >
                       Logout
                     </button>
@@ -700,11 +707,21 @@ function HomeContent() {
           >
             Create or manage a contest
           </Link>
+          <Link
+            href="/help"
+            className="block text-sm text-gray-500 hover:text-gray-700 pt-2 touch-manipulation"
+          >
+            Help guide
+          </Link>
         </div>
 
       </div>
 
       <p className="absolute bottom-4 left-0 right-0 text-center text-white/80 text-sm z-10">
+        <Link href="/help" className="hover:text-white underline underline-offset-2">
+          Help
+        </Link>
+        {' · '}
         Version 1.1
       </p>
     </div>

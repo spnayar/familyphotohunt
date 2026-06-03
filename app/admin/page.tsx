@@ -113,7 +113,13 @@ export default function AdminPage() {
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900">Admin Dashboard</h1>
-            <div className="flex gap-4 items-center">
+            <div className="flex gap-4 items-center flex-wrap">
+              <Link
+                href="/help/admin"
+                className="text-gray-600 hover:text-gray-900 text-sm sm:text-base touch-manipulation min-h-[44px] flex items-center"
+              >
+                Help guide
+              </Link>
               <button
                 onClick={handleLogout}
                 className="text-red-600 hover:text-red-800 text-sm sm:text-base touch-manipulation min-h-[44px] px-2"

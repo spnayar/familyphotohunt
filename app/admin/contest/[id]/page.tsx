@@ -268,9 +268,12 @@ export default function ContestAdminPage() {
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
             <div>
-              <div className="mb-2 flex gap-4 items-center">
+              <div className="mb-2 flex gap-4 items-center flex-wrap">
                 <Link href="/admin" className="text-blue-600 hover:text-blue-800 active:text-blue-900 text-sm sm:text-base touch-manipulation min-h-[44px] flex items-center">
                   ← Back to Admin
+                </Link>
+                <Link href="/help/admin" className="text-gray-600 hover:text-gray-900 text-sm sm:text-base touch-manipulation min-h-[44px] flex items-center">
+                  Help guide
                 </Link>
                 <button
                   onClick={handleLogout}

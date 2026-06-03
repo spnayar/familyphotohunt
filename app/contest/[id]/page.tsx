@@ -285,9 +285,16 @@ export default function ContestPage() {
                 >
                   Back to Home
                 </button>
+                <Link
+                  href="/help/participants"
+                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                  onClick={() => setShowUserMenu(false)}
+                >
+                  Help guide
+                </Link>
                 <button
                   onClick={handleLogout}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors border-t border-gray-200"
                 >
                   Logout
                 </button>
