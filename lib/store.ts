@@ -275,6 +275,14 @@ export async function getVotesByCategory(categoryId: string): Promise<Vote[]> {
   }
 }
 
+export async function getVotesByContest(contestId: string): Promise<Vote[]> {
+  try {
+    return await apiCall<Vote[]>(`/votes?contestId=${contestId}`);
+  } catch (error) {
+    return [];
+  }
+}
+
 export async function getVotesByCategoryAndRank(categoryId: string, rank: number): Promise<Vote[]> {
   try {
     const votes = await apiCall<Vote[]>(`/votes?categoryId=${categoryId}`);

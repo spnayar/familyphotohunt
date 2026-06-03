@@ -11,6 +11,7 @@ import {
   deleteCategory,
   deleteParticipant,
   getPhotosByParticipant,
+  getVotesByContest,
 } from '@/lib/store';
 import { categorySuggestions } from '@/lib/category-suggestions';
 import { ContestStageStepper } from '@/components/ContestStageStepper';
@@ -38,19 +39,69 @@ export default function ContestAdminPage() {
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
   const [participantSubmissionStatus, setParticipantSubmissionStatus] = useState<Record<string, { submitted: boolean; submittedCount: number; totalCategories: number }>>({});
-  const [isLoadingSubmissionStatus, setIsLoadingSubmissionStatus] = useState(true);
+  const [participantVotingStatus, setParticipantVotingStatus] = useState<
+    Record<string, { voteCount: number; totalCategories: number; finishedVoting: boolean }>
+  >({});
+  const [isLoadingParticipantStatus, setIsLoadingParticipantStatus] = useState(true);
   const { loadingMessage, isLoading: isActionLoading, run } = useLoadingAction();
+
+  const loadParticipantStatuses = async (loadedContest: Contest) => {
+    if (loadedContest.participants.length === 0) {
+      setParticipantSubmissionStatus({});
+      setParticipantVotingStatus({});
+      setIsLoadingParticipantStatus(false);
+      return;
+    }
+
+    setIsLoadingParticipantStatus(true);
+    const stage = normalizeContestStatus(loadedContest.status);
+    const totalCategories = loadedContest.categories.length;
+
+    if (stage === 'voting') {
+      const votes = await getVotesByContest(loadedContest.id);
+      const votesByParticipant = new Map<string, number>();
+      for (const vote of votes) {
+        votesByParticipant.set(vote.voterId, (votesByParticipant.get(vote.voterId) || 0) + 1);
+      }
+
+      const votingMap: Record<string, { voteCount: number; totalCategories: number; finishedVoting: boolean }> = {};
+      for (const participant of loadedContest.participants) {
+        const voteCount = votesByParticipant.get(participant.id) || 0;
+        votingMap[participant.id] = {
+          voteCount,
+          totalCategories,
+          finishedVoting: totalCategories > 0 && voteCount >= totalCategories,
+        };
+      }
+      setParticipantVotingStatus(votingMap);
+      setParticipantSubmissionStatus({});
+    } else {
+      const statusMap: Record<string, { submitted: boolean; submittedCount: number; totalCategories: number }> = {};
+      for (const participant of loadedContest.participants) {
+        const participantPhotos = await getPhotosByParticipant(participant.id);
+        const submittedPhotos = participantPhotos.filter((p) => p.submitted);
+        statusMap[participant.id] = {
+          submitted: participant.submissionFinalized ?? false,
+          submittedCount: submittedPhotos.length,
+          totalCategories,
+        };
+      }
+      setParticipantSubmissionStatus(statusMap);
+      setParticipantVotingStatus({});
+    }
+
+    setIsLoadingParticipantStatus(false);
+  };
 
   useEffect(() => {
     const loadContest = async () => {
       const userId = getStoredUserId();
-      
+
       if (!userId) {
         router.push('/');
         return;
       }
 
-      // Load contest
       const loadedContest = await getContest(contestId);
       if (!loadedContest) {
         router.push('/admin');
@@ -58,34 +109,14 @@ export default function ContestAdminPage() {
       }
       setContest(loadedContest);
       setIsLoading(false);
-
-      if (loadedContest.participants.length === 0) {
-        setParticipantSubmissionStatus({});
-        setIsLoadingSubmissionStatus(false);
-        return;
-      }
-
-      setIsLoadingSubmissionStatus(true);
-      // Load submission status for each participant
-      const statusMap: Record<string, { submitted: boolean; submittedCount: number; totalCategories: number }> = {};
-      for (const participant of loadedContest.participants) {
-        const participantPhotos = await getPhotosByParticipant(participant.id);
-        const submittedPhotos = participantPhotos.filter(p => p.submitted);
-        const submittedCount = submittedPhotos.length;
-        const totalCategories = loadedContest.categories.length;
-        const submitted = participant.submissionFinalized ?? false;
-        
-        statusMap[participant.id] = {
-          submitted,
-          submittedCount,
-          totalCategories,
-        };
-      }
-      setParticipantSubmissionStatus(statusMap);
-      setIsLoadingSubmissionStatus(false);
     };
     loadContest();
   }, [contestId, router]);
+
+  useEffect(() => {
+    if (!contest) return;
+    void loadParticipantStatuses(contest);
+  }, [contest?.id, contest?.status, contest?.participants.length, contest?.categories.length]);
 
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -213,6 +244,15 @@ export default function ContestAdminPage() {
     return <PageLoader message="Loading contest..." />;
   }
 
+  const isVotingStage = normalizeContestStatus(contest.status) === 'voting';
+  const showCategories = !isResultsStage(contest.status) && !isVotingStage;
+  const votingFinishedCount = isVotingStage
+    ? contest.participants.filter((p) => participantVotingStatus[p.id]?.finishedVoting).length
+    : 0;
+  const votingTotalParticipants = contest.participants.length;
+  const votingProgressPercent =
+    votingTotalParticipants > 0 ? Math.round((votingFinishedCount / votingTotalParticipants) * 100) : 0;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <LoadingOverlay show={isActionLoading} message={loadingMessage ?? undefined} />
@@ -294,6 +334,45 @@ export default function ContestAdminPage() {
                 Photo collection is closed. Participants are voting.
               </p>
             )}
+            {isVotingStage && votingTotalParticipants > 0 && (
+              <div className="mt-4 rounded-lg border border-blue-300 bg-white px-4 py-4">
+                <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm font-semibold text-gray-900">Voting progress</p>
+                  {isLoadingParticipantStatus ? (
+                    <span className="inline-flex items-center gap-2 text-sm text-gray-500">
+                      <LoadingSpinner size="sm" />
+                      Loading...
+                    </span>
+                  ) : (
+                    <p className="text-sm font-medium text-blue-800">
+                      {votingFinishedCount} of {votingTotalParticipants} participants finished voting
+                    </p>
+                  )}
+                </div>
+                {!isLoadingParticipantStatus && (
+                  <>
+                    <div className="h-3 overflow-hidden rounded-full bg-blue-100">
+                      <div
+                        className="h-full rounded-full bg-blue-600 transition-all duration-300"
+                        style={{ width: `${votingProgressPercent}%` }}
+                      />
+                    </div>
+                    <p className="mt-2 text-xs text-gray-600">
+                      {votingFinishedCount === votingTotalParticipants
+                        ? 'Everyone has voted in all categories.'
+                        : `${votingTotalParticipants - votingFinishedCount} participant${
+                            votingTotalParticipants - votingFinishedCount !== 1 ? 's' : ''
+                          } still voting`}
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+            {normalizeContestStatus(contest.status) === 'voting' && votingTotalParticipants === 0 && (
+              <p className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                No participants yet — voting progress will appear here when people join.
+              </p>
+            )}
             {normalizeContestStatus(contest.status) === 'results' && (
               <p className="mt-4 rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-800">
                 Contest complete. View results or run the winner reveal.
@@ -346,9 +425,9 @@ export default function ContestAdminPage() {
             </div>
           )}
 
-          <div className={`grid grid-cols-1 gap-4 sm:gap-8 ${!isResultsStage(contest.status) ? 'md:grid-cols-2' : ''}`}>
-            {/* Categories Section — hidden in Results stage */}
-            {!isResultsStage(contest.status) && (
+          <div className={`grid grid-cols-1 gap-4 sm:gap-8 ${showCategories ? 'md:grid-cols-2' : ''}`}>
+            {/* Categories Section — hidden during Voting and Results */}
+            {showCategories && (
             <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 mb-4">
                 <h2 className="text-xl sm:text-2xl font-semibold text-gray-900">Categories</h2>
@@ -459,7 +538,7 @@ export default function ContestAdminPage() {
                 <h2 className="text-xl sm:text-2xl font-semibold text-gray-900">Participants</h2>
               </div>
 
-              {!isResultsStage(contest.status) && (
+              {!isResultsStage(contest.status) && !isVotingStage && (
               <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-gray-700">
                   {canShowJoinCode(contest.status) ? (
@@ -479,24 +558,51 @@ export default function ContestAdminPage() {
 
               <div className="space-y-2">
                 {contest.participants.map((participant) => {
-                  const status = participantSubmissionStatus[participant.id];
-                  const hasSubmitted = status?.submitted ?? participant.submissionFinalized ?? false;
-                  const submittedCount = status?.submittedCount || 0;
-                  const totalCategories = status?.totalCategories || contest.categories.length;
-                  
+                  const submissionStatus = participantSubmissionStatus[participant.id];
+                  const votingStatus = participantVotingStatus[participant.id];
+                  const hasSubmitted =
+                    submissionStatus?.submitted ?? participant.submissionFinalized ?? false;
+                  const submittedCount = submissionStatus?.submittedCount || 0;
+                  const totalCategories =
+                    submissionStatus?.totalCategories ||
+                    votingStatus?.totalCategories ||
+                    contest.categories.length;
+                  const voteCount = votingStatus?.voteCount || 0;
+                  const finishedVoting = votingStatus?.finishedVoting ?? false;
+
+                  const cardClasses = isVotingStage
+                    ? finishedVoting
+                      ? 'bg-green-50 border-green-300'
+                      : voteCount > 0
+                        ? 'bg-amber-50 border-amber-300'
+                        : 'bg-gray-50 border-gray-200'
+                    : hasSubmitted
+                      ? 'bg-green-50 border-green-300'
+                      : 'bg-gray-50 border-gray-200';
+
                   return (
                     <div
                       key={participant.id}
-                      className={`p-4 rounded-lg border-2 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 ${
-                        hasSubmitted 
-                          ? 'bg-green-50 border-green-300' 
-                          : 'bg-gray-50 border-gray-200'
-                      }`}
+                      className={`p-4 rounded-lg border-2 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 ${cardClasses}`}
                     >
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <div className="font-bold text-gray-900 text-base sm:text-lg">{participant.name}</div>
-                          {hasSubmitted ? (
+                          {isVotingStage ? (
+                            finishedVoting ? (
+                              <span className="px-2 py-1 bg-green-600 text-white text-xs font-semibold rounded-full">
+                                ✓ Finished voting
+                              </span>
+                            ) : voteCount > 0 ? (
+                              <span className="px-2 py-1 bg-amber-500 text-white text-xs font-semibold rounded-full">
+                                Voting in progress
+                              </span>
+                            ) : (
+                              <span className="px-2 py-1 bg-gray-500 text-white text-xs font-semibold rounded-full">
+                                Not started
+                              </span>
+                            )
+                          ) : hasSubmitted ? (
                             <span className="px-2 py-1 bg-green-600 text-white text-xs font-semibold rounded-full">
                               ✓ Submitted
                             </span>
@@ -511,11 +617,14 @@ export default function ContestAdminPage() {
                           <div className="text-sm sm:text-base text-gray-700 font-medium mb-2">{participant.phone}</div>
                         )}
                         <div className="text-xs sm:text-sm text-gray-600 mt-2">
-                          {isLoadingSubmissionStatus || !status ? (
+                          {isLoadingParticipantStatus ||
+                          (isVotingStage ? !votingStatus : !submissionStatus) ? (
                             <span className="inline-flex items-center gap-2 text-gray-500">
                               <LoadingSpinner size="sm" />
-                              Loading submission status...
+                              {isVotingStage ? 'Loading voting status...' : 'Loading submission status...'}
                             </span>
+                          ) : isVotingStage ? (
+                            `${voteCount} of ${totalCategories} votes submitted`
                           ) : (
                             `${submittedCount} of ${totalCategories} categories submitted`
                           )}

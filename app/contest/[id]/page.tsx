@@ -394,6 +394,7 @@ export default function ContestPage() {
               const draftPhotos = getDraftPhotosForCategory(category.id);
               const hasSubmittedPhoto = !!submittedPhoto;
               const hasDraftPhotos = draftPhotos.length > 0;
+              const canReorderPhotos = draftPhotos.length > 1;
               const isLocked = readyToSubmit;
               const showMissingHint =
                 isCollection && !isLocked && !hasSubmittedPhoto && !hasDraftPhotos;
@@ -518,9 +519,14 @@ export default function ContestPage() {
                   {!isLocked && hasDraftPhotos && (
                     <div className="mb-6">
                       <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3">
-                        Your Photos {isCollection ? '- Rank with arrows (top photo will be submitted)' : ''}
+                        Your Photos{' '}
+                        {isCollection && canReorderPhotos
+                          ? '- Rank with arrows (top photo will be submitted)'
+                          : isCollection
+                            ? '- Top photo will be submitted'
+                            : ''}
                       </h3>
-                      {isCollection && (
+                      {isCollection && canReorderPhotos && (
                         <p className="text-sm text-gray-600 mb-4">
                           Use the move up and move down buttons to reorder photos. The photo at the top will be submitted when you toggle &quot;Ready to Submit&quot;.
                         </p>
@@ -567,33 +573,37 @@ export default function ContestPage() {
                                         This is your current top selection
                                       </p>
                                     )}
-                                    <p className="text-xs text-gray-500 mt-1">
-                                      Use the arrows to reorder
-                                    </p>
-                                    <div className="mt-2 flex gap-2">
-                                      <button
-                                        type="button"
-                                        disabled={index === 0 || isLoading}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          void movePhotoInCategory(category.id, photo.id, 'up');
-                                        }}
-                                        className="px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs sm:text-sm text-gray-800 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation min-h-[44px]"
-                                      >
-                                        ↑ Move Up
-                                      </button>
-                                      <button
-                                        type="button"
-                                        disabled={index === draftPhotos.length - 1 || isLoading}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          void movePhotoInCategory(category.id, photo.id, 'down');
-                                        }}
-                                        className="px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs sm:text-sm text-gray-800 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation min-h-[44px]"
-                                      >
-                                        ↓ Move Down
-                                      </button>
-                                    </div>
+                                    {canReorderPhotos && (
+                                      <>
+                                        <p className="text-xs text-gray-500 mt-1">
+                                          Use the arrows to reorder
+                                        </p>
+                                        <div className="mt-2 flex gap-2">
+                                          <button
+                                            type="button"
+                                            disabled={index === 0 || isLoading}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              void movePhotoInCategory(category.id, photo.id, 'up');
+                                            }}
+                                            className="px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs sm:text-sm text-gray-800 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation min-h-[44px]"
+                                          >
+                                            ↑ Move Up
+                                          </button>
+                                          <button
+                                            type="button"
+                                            disabled={index === draftPhotos.length - 1 || isLoading}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              void movePhotoInCategory(category.id, photo.id, 'down');
+                                            }}
+                                            className="px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs sm:text-sm text-gray-800 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation min-h-[44px]"
+                                          >
+                                            ↓ Move Down
+                                          </button>
+                                        </div>
+                                      </>
+                                    )}
                                   </div>
                                   <button
                                     onClick={(e) => {

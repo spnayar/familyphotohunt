@@ -405,24 +405,23 @@ function HomeContent() {
                               backgroundRepeat: 'no-repeat',
                             }}
                           />
-                          <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
                           <div
-                            className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/65 to-black/35"
+                            className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/35 to-black/10"
                             aria-hidden="true"
                           />
                           <div className="relative z-10 flex items-center justify-between gap-4">
-                            <div className="flex-1 min-w-0 rounded-lg bg-black/45 px-4 py-3 sm:px-5 sm:py-4 border border-white/15 shadow-lg">
-                              <div className="font-bold text-xl sm:text-2xl text-white mb-1 [text-shadow:0_2px_8px_rgba(0,0,0,0.85)] truncate">
+                            <div className="flex-1 min-w-0 px-1">
+                              <div className="font-bold text-xl sm:text-2xl text-white mb-1 truncate [text-shadow:0_2px_12px_rgba(0,0,0,0.9),0_0_3px_rgba(0,0,0,0.8)]">
                                 {contest.location}
                               </div>
-                              <div className="text-base sm:text-lg text-white font-medium [text-shadow:0_1px_4px_rgba(0,0,0,0.85)]">
+                              <div className="text-base sm:text-lg text-white font-medium [text-shadow:0_1px_8px_rgba(0,0,0,0.9),0_0_2px_rgba(0,0,0,0.8)]">
                                 {new Date(contest.date + '-01').toLocaleDateString('en-US', {
                                   month: 'long',
                                   year: 'numeric',
                                 })}
                               </div>
                             </div>
-                            <div className="shrink-0 flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-black/50 border border-white/20 text-white text-xl sm:text-2xl font-bold [text-shadow:0_1px_4px_rgba(0,0,0,0.85)] group-hover:translate-x-1 transition-transform">
+                            <div className="shrink-0 text-white text-2xl sm:text-3xl font-bold [text-shadow:0_2px_8px_rgba(0,0,0,0.9)] group-hover:translate-x-1 transition-transform pr-1">
                               →
                             </div>
                           </div>
