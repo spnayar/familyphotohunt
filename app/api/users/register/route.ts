@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
         email: email.toLowerCase(),
         passwordHash,
         name,
+        lastLoginAt: new Date(),
       },
     });
 

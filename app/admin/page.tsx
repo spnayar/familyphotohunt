@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getAllContests, createContest, deleteContest, getContestsCreatedByUser } from '@/lib/store';
-import { getContestStageShortLabel, getStatusBadgeClasses } from '@/lib/contest-status';
+import { getContestStageInfo } from '@/lib/contest-status';
 import { Contest } from '@/types';
 import { PageLoader } from '@/components/PageLoader';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useLoadingAction } from '@/lib/use-loading-action';
 import { clearStoredUserId, getStoredUserId } from '@/lib/auth-session';
+import { touchUserActivity } from '@/lib/user-activity';
 
 function getCurrentMonthYear(): string {
   const now = new Date();
@@ -42,6 +43,7 @@ export default function AdminPage() {
       }
 
       setUserId(storedUserId);
+      touchUserActivity(storedUserId);
       const loadedContests = await getContestsCreatedByUser(storedUserId);
       setContests(loadedContests);
       setIsLoading(false);
@@ -197,7 +199,10 @@ export default function AdminPage() {
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {contests.map((contest) => (
+            {contests.map((contest) => {
+              const stage = getContestStageInfo(contest.status);
+
+              return (
               <div
                 key={contest.id}
                 className="bg-white rounded-lg shadow-lg p-4 sm:p-6 border border-gray-200 relative group"
@@ -209,20 +214,23 @@ export default function AdminPage() {
                   <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
                     {contest.location}
                   </h3>
-                  <p className="text-base sm:text-lg text-gray-700 font-medium mb-4">
+                  <p className="text-base sm:text-lg text-gray-700 font-medium mb-3">
                     {new Date(contest.date + '-01').toLocaleDateString('en-US', { 
                       month: 'long', 
                       year: 'numeric' 
                     })}
                   </p>
+                  <div className="mb-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+                      Current stage
+                    </p>
+                    <span className={`inline-block px-2.5 py-1 rounded text-xs sm:text-sm font-semibold ${stage.badgeClasses}`}>
+                      {stage.label}
+                    </span>
+                  </div>
                   <div className="flex justify-between text-xs sm:text-sm text-gray-500 mb-2">
                     <span>{contest.categories.length} categories</span>
                     <span>{contest.participants.length} participants</span>
-                  </div>
-                  <div className="mt-2">
-                    <span className={`inline-block px-2 py-1 rounded text-xs ${getStatusBadgeClasses(contest.status)}`}>
-                      {getContestStageShortLabel(contest.status)}
-                    </span>
                   </div>
                 </Link>
                 <button
@@ -240,7 +248,8 @@ export default function AdminPage() {
                   </svg>
                 </button>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {contests.length === 0 && !showCreateForm && (

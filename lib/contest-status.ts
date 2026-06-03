@@ -9,6 +9,7 @@ const LEGACY_STATUS_MAP: Record<string, ContestStatus> = {
   voting: 'voting',
   completed: 'results',
   results: 'results',
+  closed: 'results',
 };
 
 export const CONTEST_STAGES: {
@@ -95,5 +96,32 @@ export function getStatusBadgeClasses(status: string | undefined | null): string
       return 'bg-purple-200 text-purple-700';
     default:
       return 'bg-gray-200 text-gray-700';
+  }
+}
+
+export type ContestStageInfo = {
+  normalized: ContestStatus;
+  label: string;
+  shortLabel: string;
+  badgeClasses: string;
+};
+
+/** Safe stage lookup for admin lists; tolerates legacy or unexpected status values. */
+export function getContestStageInfo(status: string | undefined | null): ContestStageInfo {
+  try {
+    const normalized = normalizeContestStatus(status);
+    return {
+      normalized,
+      label: getContestStageLabel(status),
+      shortLabel: getContestStageShortLabel(status),
+      badgeClasses: getStatusBadgeClasses(status),
+    };
+  } catch {
+    return {
+      normalized: 'setup',
+      label: status ? String(status) : 'Unknown',
+      shortLabel: 'Unknown',
+      badgeClasses: 'bg-gray-200 text-gray-700',
+    };
   }
 }

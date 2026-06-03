@@ -15,6 +15,7 @@ import {
   setPendingJoinCode,
 } from '@/lib/join-code';
 import { getStoredUserId, setStoredUserId } from '@/lib/auth-session';
+import { touchUserActivity } from '@/lib/user-activity';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { PageLoader } from '@/components/PageLoader';
 import { PasswordInput } from '@/components/PasswordInput';
@@ -127,6 +128,7 @@ function LoginContent() {
     try {
       const user = await registerUser(email, password, name);
       setStoredUserId(user.id);
+      touchUserActivity(user.id);
 
       if (joinCode.trim()) {
         const joined = await tryJoinAndRedirect(user.id, joinCode);
@@ -162,6 +164,7 @@ function LoginContent() {
       }
 
       setStoredUserId(user.id);
+      touchUserActivity(user.id);
 
       if (joinCode.trim()) {
         const joined = await tryJoinAndRedirect(user.id, joinCode);

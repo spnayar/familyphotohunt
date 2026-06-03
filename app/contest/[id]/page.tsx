@@ -34,6 +34,7 @@ import { VotingPhotoGallery } from '@/components/VotingPhotoGallery';
 import { ContestResultsDisplay } from '@/components/ContestResultsDisplay';
 import { useLoadingAction } from '@/lib/use-loading-action';
 import { clearStoredUserId, getStoredUserId } from '@/lib/auth-session';
+import { touchUserActivity } from '@/lib/user-activity';
 
 export default function ContestPage() {
   const params = useParams();
@@ -59,6 +60,8 @@ export default function ContestPage() {
         router.push('/');
         return;
       }
+
+      touchUserActivity(userId);
 
       const loadedContest = await getContest(contestId);
       if (!loadedContest) {

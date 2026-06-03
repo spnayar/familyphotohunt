@@ -6,8 +6,9 @@ import Link from 'next/link';
 import { getContestsForUser, getContestsCreatedByUser, joinContestWithCode, lookupContestByJoinCode, getUser } from '@/lib/store';
 import { clearPendingJoinCode, getPendingJoinCode, setPendingJoinCode } from '@/lib/join-code';
 import { clearStoredUserId, getStoredUserId } from '@/lib/auth-session';
+import { touchUserActivity } from '@/lib/user-activity';
 import { getContestCoverImage } from '@/lib/contest-cover-image';
-import { getContestStageShortLabel, canShowJoinCode } from '@/lib/contest-status';
+import { canShowJoinCode, getContestStageInfo } from '@/lib/contest-status';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { PageLoader } from '@/components/PageLoader';
 
@@ -47,6 +48,7 @@ function HomeContent() {
           if (storedUserId) {
             setUserId(storedUserId);
             setIsLoggedIn(true);
+            touchUserActivity(storedUserId);
             setIsLoadingContests(true);
             await loadUserInfo(storedUserId);
             await loadUserContests(storedUserId);
@@ -397,7 +399,10 @@ function HomeContent() {
                   <div className="mb-8">
                     <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-4">Your Contests</h2>
                     <div className="space-y-4">
-                      {userContests.map((contest) => (
+                      {userContests.map((contest) => {
+                        const stage = getContestStageInfo(contest.status);
+
+                        return (
                         <button
                           key={contest.id}
                           onClick={() => router.push(`/contest/${contest.id}`)}
@@ -427,13 +432,19 @@ function HomeContent() {
                                   year: 'numeric',
                                 })}
                               </div>
+                              <div className="mt-2">
+                                <span className={`inline-block px-2.5 py-1 rounded text-xs font-semibold ${stage.badgeClasses}`}>
+                                  {stage.shortLabel}
+                                </span>
+                              </div>
                             </div>
                             <div className="shrink-0 text-white text-2xl sm:text-3xl font-bold [text-shadow:0_2px_8px_rgba(0,0,0,0.9)] group-hover:translate-x-1 transition-transform pr-1">
                               →
                             </div>
                           </div>
                         </button>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -442,20 +453,28 @@ function HomeContent() {
                   <div className="mb-8">
                     <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-4">Contests you&apos;re organizing</h2>
                     <div className="space-y-3">
-                      {createdContests.map((contest) => (
+                      {createdContests.map((contest) => {
+                        const stage = getContestStageInfo(contest.status);
+
+                        return (
                         <button
                           key={contest.id}
                           onClick={() => router.push(`/admin/contest/${contest.id}`)}
                           className="w-full text-left p-4 sm:p-5 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border border-gray-200 hover:border-green-300 active:scale-98 touch-manipulation"
                         >
-                          <div className="flex items-start justify-between">
+                          <div className="flex items-start justify-between gap-3">
                             <div className="flex-1">
                               <div className="font-semibold text-base sm:text-lg text-gray-900 mb-1">{contest.location}</div>
-                              <div className="text-xs sm:text-sm text-gray-600 mb-1">
+                              <div className="text-xs sm:text-sm text-gray-600 mb-2">
                                 {new Date(contest.date + '-01').toLocaleDateString('en-US', {
                                   month: 'long',
                                   year: 'numeric',
                                 })}
+                              </div>
+                              <div className="mb-2">
+                                <span className={`inline-block px-2.5 py-1 rounded text-xs font-semibold ${stage.badgeClasses}`}>
+                                  {stage.label}
+                                </span>
                               </div>
                               {canShowJoinCode(contest.status) && (
                                 <div className="text-xs text-gray-500">
@@ -463,12 +482,10 @@ function HomeContent() {
                                 </div>
                               )}
                             </div>
-                            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                              {getContestStageShortLabel(contest.status)}
-                            </span>
                           </div>
                         </button>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageLoader } from '@/components/PageLoader';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { getContestStageInfo } from '@/lib/contest-status';
 
 type SuperAdminUser = {
   id: string;
@@ -30,14 +31,18 @@ type SuperAdminContest = {
   id: string;
   location: string;
   date: string;
+  status: string;
   stageLabel: string;
+  stageShortLabel: string;
   joinCode: string;
   createdAt: string;
+  lastActivityAt: string;
   creator: { id: string; name: string; email: string } | null;
   participantCount: number;
   participants: { id: string; name: string; email: string; joinedAt: string }[];
   submittedPhotoCount: number;
   totalPhotoCount: number;
+  categories: { id: string; name: string; description: string | null }[];
 };
 
 function formatDateTime(value: string | null): string {
@@ -83,6 +88,19 @@ export default function SuperAdminDashboardPage() {
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [expandedCategoryContests, setExpandedCategoryContests] = useState<Set<string>>(new Set());
+
+  const toggleContestCategories = (contestId: string) => {
+    setExpandedCategoryContests((previous) => {
+      const next = new Set(previous);
+      if (next.has(contestId)) {
+        next.delete(contestId);
+      } else {
+        next.add(contestId);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     const checkSession = async () => {
@@ -149,7 +167,12 @@ export default function SuperAdminDashboardPage() {
         contest.location.toLowerCase().includes(query) ||
         contest.creator?.name.toLowerCase().includes(query) ||
         contest.creator?.email.toLowerCase().includes(query) ||
-        contest.joinCode.toLowerCase().includes(query)
+        contest.joinCode.toLowerCase().includes(query) ||
+        contest.categories.some(
+          (category) =>
+            category.name.toLowerCase().includes(query) ||
+            (category.description?.toLowerCase().includes(query) ?? false)
+        )
     );
   }, [contests, search]);
 
@@ -256,16 +279,25 @@ export default function SuperAdminDashboardPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {filteredContests.map((contest) => (
+              {filteredContests.map((contest) => {
+                const stage = getContestStageInfo(contest.status);
+                const categoriesExpanded = expandedCategoryContests.has(contest.id);
+
+                return (
                 <div key={contest.id} className="rounded-xl bg-white border border-gray-200 shadow-sm p-5 sm:p-6">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-4">
                     <div>
                       <h2 className="text-lg font-semibold text-gray-900">
                         {contest.location} · {formatMonthYear(contest.date)}
                       </h2>
-                      <p className="text-sm text-gray-600">
-                        {contest.stageLabel} · Join code {contest.joinCode}
+                      <p className="text-sm text-gray-600 mt-1">
+                        Join code {contest.joinCode}
                       </p>
+                      <div className="mt-2">
+                        <span className={`inline-block px-2.5 py-1 rounded text-xs font-semibold ${stage.badgeClasses}`}>
+                          {stage.label}
+                        </span>
+                      </div>
                     </div>
                     <div className="text-sm text-gray-600">
                       <div>
@@ -275,10 +307,15 @@ export default function SuperAdminDashboardPage() {
                           : 'Unknown'}
                       </div>
                       <div>Created: {formatDateTime(contest.createdAt)}</div>
+                      <div>Last activity: {formatDateTime(contest.lastActivityAt)}</div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                    <div className="rounded-lg bg-slate-50 px-4 py-3">
+                      <p className="text-xs uppercase tracking-wide text-slate-500">Current stage</p>
+                      <p className="text-sm font-bold text-slate-900 mt-1">{stage.shortLabel}</p>
+                    </div>
                     <div className="rounded-lg bg-slate-50 px-4 py-3">
                       <p className="text-xs uppercase tracking-wide text-slate-500">Participants</p>
                       <p className="text-2xl font-bold text-slate-900">{contest.participantCount}</p>
@@ -291,6 +328,50 @@ export default function SuperAdminDashboardPage() {
                       <p className="text-xs uppercase tracking-wide text-slate-500">Total uploads</p>
                       <p className="text-2xl font-bold text-slate-900">{contest.totalPhotoCount}</p>
                     </div>
+                  </div>
+
+                  <div className="mb-4 border-t border-gray-200 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => toggleContestCategories(contest.id)}
+                      className="flex w-full items-center justify-between gap-3 text-left touch-manipulation min-h-[44px]"
+                      aria-expanded={categoriesExpanded}
+                    >
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900">Categories</h3>
+                        <p className="text-sm text-gray-600">
+                          {contest.categories.length} categor{contest.categories.length === 1 ? 'y' : 'ies'} used in this contest
+                        </p>
+                      </div>
+                      <span
+                        className={`text-gray-500 text-lg transition-transform ${categoriesExpanded ? 'rotate-180' : ''}`}
+                        aria-hidden="true"
+                      >
+                        ▼
+                      </span>
+                    </button>
+
+                    {categoriesExpanded && (
+                      <div className="mt-3 space-y-2">
+                        {contest.categories.length === 0 ? (
+                          <p className="text-sm text-gray-500">No categories configured.</p>
+                        ) : (
+                          contest.categories.map((category) => (
+                            <div
+                              key={category.id}
+                              className="rounded-lg border border-gray-200 bg-slate-50 px-4 py-3"
+                            >
+                              <p className="text-sm font-semibold text-gray-900">{category.name}</p>
+                              {category.description ? (
+                                <p className="mt-1 text-sm text-gray-600">{category.description}</p>
+                              ) : (
+                                <p className="mt-1 text-xs text-gray-500 italic">No description</p>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -308,7 +389,8 @@ export default function SuperAdminDashboardPage() {
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
               {filteredContests.length === 0 && (
                 <p className="text-center text-gray-500 py-10">No contests match your search.</p>
               )}

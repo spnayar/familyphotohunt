@@ -22,6 +22,7 @@ import { CONTEST_STAGES, canShowJoinCode, getContestStageLabel, isResultsStage, 
 import { getContestPhotosDownloadUrl } from '@/lib/photo-download';
 import { useLoadingAction } from '@/lib/use-loading-action';
 import { clearStoredUserId, getStoredUserId } from '@/lib/auth-session';
+import { touchUserActivity } from '@/lib/user-activity';
 import {
   getAnnouncementCopyMeta,
   getParticipantAnnouncement,
@@ -106,6 +107,8 @@ export default function ContestAdminPage() {
         router.push('/');
         return;
       }
+
+      touchUserActivity(userId);
 
       const loadedContest = await getContest(contestId);
       if (!loadedContest) {
@@ -483,7 +486,6 @@ export default function ContestAdminPage() {
                     className="p-4 bg-gray-50 rounded-lg border-2 border-gray-200"
                   >
                     {editingCategoryId === category.id ? (
-                      // Edit Mode
                       <div className="space-y-3">
                         <div>
                           <label className="block text-gray-900 font-semibold mb-2 text-base sm:text-lg">
@@ -525,7 +527,6 @@ export default function ContestAdminPage() {
                         </div>
                       </div>
                     ) : (
-                      // View Mode
                       <div className="flex justify-between items-start gap-3">
                         <div className="flex-1">
                           <h3 className="font-bold text-gray-900 text-base sm:text-lg mb-1">{category.name}</h3>
