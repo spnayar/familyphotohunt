@@ -93,6 +93,25 @@ If the app shows "Application failed to respond":
 2. **Database**: Production uses **SQLite on a Railway volume** — not PostgreSQL. Keep `DATABASE_URL=file:../data/dev.db` and the volume at `/app/data`. See [Production data safety](#production-data-safety-railway) below.
 3. **Start script**: `npm start` runs `scripts/ensure-db.mjs` (schema sync + safety checks) then Next.js. **Do not** change it to use `--force-reset` or point at a different database path.
 
+### Site owner console (super admin)
+
+Hidden console for the site owner only — **not linked from the public app**. Separate login from participant/organizer accounts.
+
+| URL | Purpose |
+|-----|---------|
+| `/super-admin/login` | Site owner sign-in |
+| `/super-admin` | All users and all contests site-wide |
+
+Set these **Railway Variables** (never commit real values):
+
+| Variable | Purpose |
+|----------|---------|
+| `SUPER_ADMIN_USERNAME` | Login username |
+| `SUPER_ADMIN_PASSWORD` | Login password |
+| `SUPER_ADMIN_SESSION_SECRET` | Random string (32+ chars) used to sign session cookies |
+
+After deploy, bookmark `https://familyphotohunt.com/super-admin/login`. The console shows registered users (with last login and contest roles) and all contests (creator, participants, photo counts).
+
 ### Production data safety (Railway)
 
 Production runs at [familyphotohunt.com](https://www.familyphotohunt.com) with **SQLite on a persistent Railway volume**. Contests, participants, votes, and **photos** (stored in the database) all live in a single file: `/app/data/dev.db`.

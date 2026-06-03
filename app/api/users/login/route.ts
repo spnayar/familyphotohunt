@@ -33,6 +33,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
     return NextResponse.json({
       id: user.id,
       email: user.email,

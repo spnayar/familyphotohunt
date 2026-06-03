@@ -25,6 +25,7 @@ export interface User {
   passwordHash: string; // Hashed password
   name: string;
   isAdmin: boolean;
+  lastLoginAt?: string | null;
   createdAt: string;
 }
 

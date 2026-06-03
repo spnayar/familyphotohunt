@@ -16,6 +16,7 @@ model User {
   passwordHash String
   name         String
   isAdmin      Boolean   @default(false)
+  lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
   
   participants Participant[]
