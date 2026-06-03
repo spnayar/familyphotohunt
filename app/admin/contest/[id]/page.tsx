@@ -22,6 +22,11 @@ import { CONTEST_STAGES, canShowJoinCode, getContestStageLabel, isResultsStage, 
 import { getContestPhotosDownloadUrl } from '@/lib/photo-download';
 import { useLoadingAction } from '@/lib/use-loading-action';
 import { clearStoredUserId, getStoredUserId } from '@/lib/auth-session';
+import {
+  getAnnouncementCopyMeta,
+  getParticipantAnnouncement,
+} from '@/lib/contest-announcements';
+import { CopyAnnouncementSnippet } from '@/components/CopyAnnouncementSnippet';
 import { Contest, Category, Participant } from '@/types';
 
 export default function ContestAdminPage() {
@@ -252,6 +257,9 @@ export default function ContestAdminPage() {
   const votingTotalParticipants = contest.participants.length;
   const votingProgressPercent =
     votingTotalParticipants > 0 ? Math.round((votingFinishedCount / votingTotalParticipants) * 100) : 0;
+  const collectionAnnouncement = getParticipantAnnouncement('collection', contest);
+  const votingAnnouncement = getParticipantAnnouncement('voting', contest);
+  const resultsAnnouncement = getParticipantAnnouncement('results', contest);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -325,14 +333,26 @@ export default function ContestAdminPage() {
               </p>
             )}
             {normalizeContestStatus(contest.status) === 'collection' && (
-              <p className="mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-                Participants can upload and submit photos.
-              </p>
+              <>
+                <p className="mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+                  Participants can upload and submit photos. Share the invite message below with your group.
+                </p>
+                <CopyAnnouncementSnippet
+                  {...getAnnouncementCopyMeta('collection')}
+                  message={collectionAnnouncement}
+                />
+              </>
             )}
             {normalizeContestStatus(contest.status) === 'voting' && (
               <p className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                Photo collection is closed. Participants are voting.
+                Photo collection is closed. Share the message below so participants know they can vote.
               </p>
+            )}
+            {isVotingStage && (
+              <CopyAnnouncementSnippet
+                {...getAnnouncementCopyMeta('voting')}
+                message={votingAnnouncement}
+              />
             )}
             {isVotingStage && votingTotalParticipants > 0 && (
               <div className="mt-4 rounded-lg border border-blue-300 bg-white px-4 py-4">
@@ -374,9 +394,15 @@ export default function ContestAdminPage() {
               </p>
             )}
             {normalizeContestStatus(contest.status) === 'results' && (
-              <p className="mt-4 rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-800">
-                Contest complete. View results or run the winner reveal.
-              </p>
+              <>
+                <p className="mt-4 rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-800">
+                  Contest complete. Share the results message below, then view results or run the winner reveal.
+                </p>
+                <CopyAnnouncementSnippet
+                  {...getAnnouncementCopyMeta('results')}
+                  message={resultsAnnouncement}
+                />
+              </>
             )}
           </div>
 
