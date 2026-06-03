@@ -49,4 +49,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# local tooling venvs
+.venv-marketing/
+
 /lib/generated/prisma

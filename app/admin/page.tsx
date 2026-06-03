@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getAllContests, createContest, deleteContest, getContestsCreatedByUser } from '@/lib/store';
+import { getContestsCreatedByUser, createContest, deleteContest } from '@/lib/store';
 import { getContestStageInfo } from '@/lib/contest-status';
 import { Contest } from '@/types';
 import { PageLoader } from '@/components/PageLoader';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { DeleteContestDialog } from '@/components/DeleteContestDialog';
 import { useLoadingAction } from '@/lib/use-loading-action';
 import { clearStoredUserId, getStoredUserId } from '@/lib/auth-session';
 import { touchUserActivity } from '@/lib/user-activity';
@@ -31,6 +32,7 @@ export default function AdminPage() {
   });
 
   const [userId, setUserId] = useState<string | null>(null);
+  const [contestToDelete, setContestToDelete] = useState<Pick<Contest, 'id' | 'location'> | null>(null);
   const { loadingMessage, isLoading: isActionLoading, run } = useLoadingAction();
 
   useEffect(() => {
@@ -78,24 +80,28 @@ export default function AdminPage() {
     }
   };
 
-  const handleDeleteContest = async (contestId: string, contestLocation: string) => {
-    if (!confirm(`Are you sure you want to delete the contest "${contestLocation}"?\n\nThis will permanently delete:\n- The contest\n- All categories\n- All participants\n- All photos\n- All votes\n\nThis action cannot be undone.`)) {
-      return;
-    }
+  const handleDeleteContest = (contestId: string, contestLocation: string) => {
+    setContestToDelete({ id: contestId, location: contestLocation });
+  };
+
+  const confirmDeleteContest = async () => {
+    if (!contestToDelete) return;
 
     try {
       await run('Deleting contest...', async () => {
-        const success = await deleteContest(contestId);
-        if (success) {
-          const updatedContests = await getAllContests();
-          setContests(updatedContests);
-          alert('Contest deleted successfully');
-        } else {
-          alert('Failed to delete contest');
+        const success = await deleteContest(contestToDelete.id);
+        if (!success) {
+          throw new Error('Failed to delete contest');
         }
+
+        if (userId) {
+          const updatedContests = await getContestsCreatedByUser(userId);
+          setContests(updatedContests);
+        }
+        setContestToDelete(null);
       });
-    } catch (error: any) {
-      alert(`Failed to delete contest: ${error.message}`);
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : 'Failed to delete contest');
     }
   };
 
@@ -259,6 +265,15 @@ export default function AdminPage() {
           )}
         </div>
       </div>
+
+      <DeleteContestDialog
+        open={contestToDelete !== null}
+        contestId={contestToDelete?.id ?? null}
+        contestLocation={contestToDelete?.location ?? ''}
+        onClose={() => setContestToDelete(null)}
+        onConfirm={confirmDeleteContest}
+        isDeleting={isActionLoading}
+      />
     </div>
   );
 }

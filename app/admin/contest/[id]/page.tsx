@@ -9,6 +9,7 @@ import {
   addCategory,
   updateCategory,
   deleteCategory,
+  deleteContest,
   deleteParticipant,
   getPhotosByParticipant,
   getVotesByContest,
@@ -28,6 +29,7 @@ import {
   getParticipantAnnouncement,
 } from '@/lib/contest-announcements';
 import { CopyAnnouncementSnippet } from '@/components/CopyAnnouncementSnippet';
+import { DeleteContestDialog } from '@/components/DeleteContestDialog';
 import { Contest, Category, Participant } from '@/types';
 
 export default function ContestAdminPage() {
@@ -49,6 +51,7 @@ export default function ContestAdminPage() {
     Record<string, { voteCount: number; totalCategories: number; finishedVoting: boolean }>
   >({});
   const [isLoadingParticipantStatus, setIsLoadingParticipantStatus] = useState(true);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { loadingMessage, isLoading: isActionLoading, run } = useLoadingAction();
 
   const loadParticipantStatuses = async (loadedContest: Contest) => {
@@ -246,6 +249,14 @@ export default function ContestAdminPage() {
   const handleLogout = () => {
     clearStoredUserId();
     router.push('/');
+  };
+
+  const handleDeleteContest = async () => {
+    const success = await deleteContest(contestId);
+    if (!success) {
+      throw new Error('Failed to delete contest');
+    }
+    router.push('/admin');
   };
 
   if (isLoading || !contest) {
@@ -688,8 +699,32 @@ export default function ContestAdminPage() {
               </div>
             </div>
           </div>
+
+          <div className="mt-8 rounded-xl border-2 border-red-300 bg-white p-5 sm:p-6 shadow-sm">
+            <h2 className="text-lg sm:text-xl font-semibold text-red-900 mb-2">Danger zone</h2>
+            <p className="text-sm text-gray-700 mb-4">
+              Deleting this contest permanently removes all categories, participants, uploaded photos,
+              and votes. This cannot be undone.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowDeleteDialog(true)}
+              className="bg-red-600 text-white px-5 py-3 rounded-lg hover:bg-red-700 active:bg-red-800 font-semibold text-sm sm:text-base touch-manipulation min-h-[44px]"
+            >
+              Delete contest permanently
+            </button>
+          </div>
         </div>
       </div>
+
+      <DeleteContestDialog
+        open={showDeleteDialog}
+        contestId={contest.id}
+        contestLocation={contest.location}
+        onClose={() => setShowDeleteDialog(false)}
+        onConfirm={() => run('Deleting contest...', handleDeleteContest)}
+        isDeleting={isActionLoading}
+      />
 
       {/* Full-screen Modal for Suggested Categories */}
       {showCategorySuggestions && (
