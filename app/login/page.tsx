@@ -14,8 +14,10 @@ import {
   getPendingJoinCode,
   setPendingJoinCode,
 } from '@/lib/join-code';
+import { getStoredUserId, setStoredUserId } from '@/lib/auth-session';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { PageLoader } from '@/components/PageLoader';
+import { PasswordInput } from '@/components/PasswordInput';
 
 function LoginContent() {
   const router = useRouter();
@@ -45,7 +47,7 @@ function LoginContent() {
       setPendingJoinCode(initialCode);
     }
 
-    const storedUserId = sessionStorage.getItem('userId');
+    const storedUserId = getStoredUserId();
     if (storedUserId && initialCode) {
       void tryJoinAndRedirect(storedUserId, initialCode).finally(() => {
         setIsCheckingSession(false);
@@ -124,7 +126,7 @@ function LoginContent() {
 
     try {
       const user = await registerUser(email, password, name);
-      sessionStorage.setItem('userId', user.id);
+      setStoredUserId(user.id);
 
       if (joinCode.trim()) {
         const joined = await tryJoinAndRedirect(user.id, joinCode);
@@ -159,7 +161,7 @@ function LoginContent() {
         return;
       }
 
-      sessionStorage.setItem('userId', user.id);
+      setStoredUserId(user.id);
 
       if (joinCode.trim()) {
         const joined = await tryJoinAndRedirect(user.id, joinCode);
@@ -244,16 +246,18 @@ function LoginContent() {
               />
             </div>
             <div className="mb-4">
-              <label className="block text-gray-700 font-medium mb-2 text-sm">Password</label>
-              <input
-                type="password"
+              <label htmlFor="register-password" className="block text-gray-700 font-medium mb-2 text-sm">
+                Password
+              </label>
+              <PasswordInput
+                id="register-password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={setPassword}
                 placeholder="At least 6 characters"
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900"
                 required
                 minLength={6}
                 disabled={loading}
+                autoComplete="new-password"
               />
             </div>
             <button
@@ -291,13 +295,14 @@ function LoginContent() {
               />
             </div>
             <div className="mb-4">
-              <label className="block text-gray-700 font-medium mb-2 text-sm">Password</label>
-              <input
-                type="password"
+              <label htmlFor="login-password" className="block text-gray-700 font-medium mb-2 text-sm">
+                Password
+              </label>
+              <PasswordInput
+                id="login-password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={setPassword}
                 placeholder="Your password"
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900"
                 required
                 disabled={loading}
               />

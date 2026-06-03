@@ -33,6 +33,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { VotingPhotoGallery } from '@/components/VotingPhotoGallery';
 import { ContestResultsDisplay } from '@/components/ContestResultsDisplay';
 import { useLoadingAction } from '@/lib/use-loading-action';
+import { clearStoredUserId, getStoredUserId } from '@/lib/auth-session';
 
 export default function ContestPage() {
   const params = useParams();
@@ -52,7 +53,7 @@ export default function ContestPage() {
 
   useEffect(() => {
     // Check if user is logged in
-    const userId = sessionStorage.getItem('userId');
+    const userId = getStoredUserId();
     const loadData = async () => {
       if (!userId) {
         router.push('/');
@@ -85,7 +86,7 @@ export default function ContestPage() {
   // Load user info for avatar
   useEffect(() => {
     const loadUserInfo = async () => {
-      const userId = sessionStorage.getItem('userId');
+      const userId = getStoredUserId();
       if (userId) {
         const user = await getUser(userId);
         if (user) {
@@ -236,7 +237,7 @@ export default function ContestPage() {
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('userId');
+    clearStoredUserId();
     router.push('/');
   };
 
@@ -768,7 +769,7 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
             </div>
             <button
               onClick={() => {
-                sessionStorage.removeItem('userId');
+                clearStoredUserId();
                 window.location.href = '/login';
               }}
               className="text-blue-600 hover:text-blue-800 active:text-blue-900 text-sm sm:text-base touch-manipulation min-h-[44px] px-2"

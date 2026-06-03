@@ -1,6 +1,6 @@
 {
-  "name": "Vacation Photo Contest",
-  "short_name": "Photo Contest",
+  "name": "Photo Hunt",
+  "short_name": "Photo Hunt",
   "description": "Family vacation photo contest app",
   "start_url": "/",
   "display": "standalone",

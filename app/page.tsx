@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { getContestsForUser, getContestsCreatedByUser, joinContestWithCode, lookupContestByJoinCode, getUser } from '@/lib/store';
 import { clearPendingJoinCode, getPendingJoinCode, setPendingJoinCode } from '@/lib/join-code';
+import { clearStoredUserId, getStoredUserId } from '@/lib/auth-session';
+import { getContestCoverImage } from '@/lib/contest-cover-image';
 import { getContestStageShortLabel, canShowJoinCode } from '@/lib/contest-status';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { PageLoader } from '@/components/PageLoader';
@@ -41,7 +43,7 @@ function HomeContent() {
             setPendingJoinCode(initialCode);
           }
 
-          const storedUserId = sessionStorage.getItem('userId');
+          const storedUserId = getStoredUserId();
           if (storedUserId) {
             setUserId(storedUserId);
             setIsLoggedIn(true);
@@ -57,7 +59,7 @@ function HomeContent() {
             setIsLoadingContests(false);
           }
         } catch (error) {
-          console.error('Error reading sessionStorage:', error);
+          console.error('Error reading stored login:', error);
           setIsLoadingContests(false);
         }
       })();
@@ -217,9 +219,7 @@ function HomeContent() {
   };
 
   const handleLogout = () => {
-    if (typeof window !== 'undefined') {
-      sessionStorage.removeItem('userId');
-    }
+    clearStoredUserId();
     setIsLoggedIn(false);
     setUserId(null);
     setUserName('');
@@ -237,61 +237,7 @@ function HomeContent() {
       .slice(0, 2);
   };
 
-  const getLocationImage = (location: string): string => {
-    // Normalize location name (remove common suffixes, convert to lowercase)
-    const normalized = location.toLowerCase().trim();
-    
-    // Map common location names to specific Unsplash image IDs or queries
-    // Using Unsplash's API with specific photo IDs for better reliability
-    const locationMap: Record<string, string> = {
-      'paris': 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800&h=600&fit=crop&q=80',
-      'london': 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800&h=600&fit=crop&q=80',
-      'new york': 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800&h=600&fit=crop&q=80',
-      'tokyo': 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800&h=600&fit=crop&q=80',
-      'rome': 'https://images.unsplash.com/photo-1529260830199-42c24126f198?w=800&h=600&fit=crop&q=80',
-      'barcelona': 'https://images.unsplash.com/photo-1539037116277-4db20889f2d4?w=800&h=600&fit=crop&q=80',
-      'amsterdam': 'https://images.unsplash.com/photo-1534351590666-13e3e96b5017?w=800&h=600&fit=crop&q=80',
-      'dubai': 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=800&h=600&fit=crop&q=80',
-      'sydney': 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop&q=80',
-      'san francisco': 'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=800&h=600&fit=crop&q=80',
-      'los angeles': 'https://images.unsplash.com/photo-1515896578789-8d0cb4840cc5?w=800&h=600&fit=crop&q=80',
-      'chicago': 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&h=600&fit=crop&q=80',
-      'miami': 'https://images.unsplash.com/photo-1514214246283-d427a95c5d2f?w=800&h=600&fit=crop&q=80',
-      'boston': 'https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=800&h=600&fit=crop&q=80',
-      'seattle': 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=800&h=600&fit=crop&q=80',
-      'vancouver': 'https://images.unsplash.com/photo-1559511260-66a654ae982a?w=800&h=600&fit=crop&q=80',
-      'toronto': 'https://images.unsplash.com/photo-1517935706615-2717063c2225?w=800&h=600&fit=crop&q=80',
-      'venice': 'https://images.unsplash.com/photo-1514890547357-a9ee288728e0?w=800&h=600&fit=crop&q=80',
-      'florence': 'https://images.unsplash.com/photo-1520175480921-4edfa2983e0f?w=800&h=600&fit=crop&q=80',
-      'athens': 'https://images.unsplash.com/photo-1604999333679-b86d54738315?w=800&h=600&fit=crop&q=80',
-      'istanbul': 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=800&h=600&fit=crop&q=80',
-      'cairo': 'https://images.unsplash.com/photo-1539650116574-75c0c6d73a6e?w=800&h=600&fit=crop&q=80',
-      'rio de janeiro': 'https://images.unsplash.com/photo-1483729558449-99ef09a8c325?w=800&h=600&fit=crop&q=80',
-      'machu picchu': 'https://images.unsplash.com/photo-1587595431973-160d0d94a21d?w=800&h=600&fit=crop&q=80',
-      'santorini': 'https://images.unsplash.com/photo-1613395877344-13d4a8e0d49e?w=800&h=600&fit=crop&q=80',
-      'bali': 'https://images.unsplash.com/photo-1518548419970-58e3b4079ab2?w=800&h=600&fit=crop&q=80',
-      'thailand': 'https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?w=800&h=600&fit=crop&q=80',
-    };
-
-    // Check if we have a direct match
-    if (locationMap[normalized]) {
-      return locationMap[normalized];
-    }
-
-    // Check for partial matches (e.g., "Paris Trip" contains "paris")
-    for (const [key, imageUrl] of Object.entries(locationMap)) {
-      if (normalized.includes(key)) {
-        return imageUrl;
-      }
-    }
-
-    // Default: use Unsplash search API with the location name
-    const searchQuery = encodeURIComponent(location);
-    return `https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop&q=80&auto=format`;
-  };
-
-  // Always render the form - don't wait for mounted
-  // The useEffect will handle sessionStorage after mount
+  // The useEffect will restore login from localStorage after mount
 
   if (isLoggedIn && userId) {
     if (isLoadingContests) {
@@ -453,26 +399,30 @@ function HomeContent() {
                           <div
                             className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-110"
                             style={{
-                              backgroundImage: `url(${getLocationImage(contest.location)})`,
+                              backgroundImage: `url(${getContestCoverImage(contest)})`,
                               backgroundSize: 'cover',
                               backgroundPosition: 'center',
                               backgroundRepeat: 'no-repeat',
                             }}
-                          >
-                            <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/60 to-black/50"></div>
-                          </div>
-                          <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 -z-10"></div>
-                          <div className="relative z-10 flex items-center justify-between">
-                            <div className="flex-1">
-                              <div className="font-bold text-xl sm:text-2xl text-white mb-2 drop-shadow-lg">{contest.location}</div>
-                              <div className="text-base sm:text-lg text-white/90 drop-shadow-md">
+                          />
+                          <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
+                          <div
+                            className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/65 to-black/35"
+                            aria-hidden="true"
+                          />
+                          <div className="relative z-10 flex items-center justify-between gap-4">
+                            <div className="flex-1 min-w-0 rounded-lg bg-black/45 px-4 py-3 sm:px-5 sm:py-4 border border-white/15 shadow-lg">
+                              <div className="font-bold text-xl sm:text-2xl text-white mb-1 [text-shadow:0_2px_8px_rgba(0,0,0,0.85)] truncate">
+                                {contest.location}
+                              </div>
+                              <div className="text-base sm:text-lg text-white font-medium [text-shadow:0_1px_4px_rgba(0,0,0,0.85)]">
                                 {new Date(contest.date + '-01').toLocaleDateString('en-US', {
                                   month: 'long',
                                   year: 'numeric',
                                 })}
                               </div>
                             </div>
-                            <div className="text-white text-2xl sm:text-3xl font-bold drop-shadow-lg group-hover:translate-x-2 transition-transform">
+                            <div className="shrink-0 flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-black/50 border border-white/20 text-white text-xl sm:text-2xl font-bold [text-shadow:0_1px_4px_rgba(0,0,0,0.85)] group-hover:translate-x-1 transition-transform">
                               →
                             </div>
                           </div>

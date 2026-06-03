@@ -20,6 +20,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { CONTEST_STAGES, canShowJoinCode, getContestStageLabel, isResultsStage, isSetupStage, normalizeContestStatus } from '@/lib/contest-status';
 import { getContestPhotosDownloadUrl } from '@/lib/photo-download';
 import { useLoadingAction } from '@/lib/use-loading-action';
+import { clearStoredUserId, getStoredUserId } from '@/lib/auth-session';
 import { Contest, Category, Participant } from '@/types';
 
 export default function ContestAdminPage() {
@@ -42,7 +43,7 @@ export default function ContestAdminPage() {
 
   useEffect(() => {
     const loadContest = async () => {
-      const userId = sessionStorage.getItem('userId');
+      const userId = getStoredUserId();
       
       if (!userId) {
         router.push('/');
@@ -204,7 +205,7 @@ export default function ContestAdminPage() {
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('userId');
+    clearStoredUserId();
     router.push('/');
   };
 

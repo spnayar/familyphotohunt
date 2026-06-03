@@ -13,13 +13,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Vacation Photo Contest",
+  title: "Photo Hunt",
   description: "Family vacation photo contest app",
   viewport: "width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Photo Contest",
+    title: "Photo Hunt",
   },
   formatDetection: {
     telephone: false,

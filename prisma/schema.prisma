@@ -28,6 +28,7 @@ model Contest {
   date         String        // Format: "YYYY-MM"
   status       String        @default("setup") // 'setup' | 'collection' | 'voting' | 'results'
   joinCode     String        @unique
+  coverImageUrl String?
   creatorId    String?       // User who created the contest
   createdAt    DateTime      @default(now())
   

@@ -7,6 +7,7 @@ export interface Contest {
   participants: Participant[];
   status: 'setup' | 'collection' | 'voting' | 'results';
   joinCode: string; // 4-digit alphanumeric code to join the contest
+  coverImageUrl?: string | null;
   creatorId?: string | null; // User who created the contest
 }
 

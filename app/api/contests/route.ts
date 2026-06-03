@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { pickCoverImageForContest } from '@/lib/contest-cover-image';
 
 // Generate a unique 4-digit alphanumeric join code
 function generateJoinCode(): string {
@@ -74,7 +75,17 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(contest);
+    const contestWithCover = await prisma.contest.update({
+      where: { id: contest.id },
+      data: { coverImageUrl: pickCoverImageForContest(contest.id) },
+      include: {
+        categories: true,
+        participants: true,
+        creator: true,
+      },
+    });
+
+    return NextResponse.json(contestWithCover);
   } catch (error: any) {
     console.error('Create contest error:', error);
     return NextResponse.json(

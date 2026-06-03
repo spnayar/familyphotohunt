@@ -6,6 +6,7 @@ import { getContest } from '@/lib/store';
 import { Contest } from '@/types';
 import { PageLoader } from '@/components/PageLoader';
 import { ContestResultsDisplay } from '@/components/ContestResultsDisplay';
+import { getStoredUserId } from '@/lib/auth-session';
 
 export default function ResultsPage() {
   const params = useParams();
@@ -17,7 +18,7 @@ export default function ResultsPage() {
 
   useEffect(() => {
     const loadResults = async () => {
-      const userId = sessionStorage.getItem('userId');
+      const userId = getStoredUserId();
 
       if (!userId) {
         router.push('/');

@@ -10,6 +10,7 @@ import { PageLoader } from '@/components/PageLoader';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useLoadingAction } from '@/lib/use-loading-action';
+import { clearStoredUserId, getStoredUserId } from '@/lib/auth-session';
 
 function getCurrentMonthYear(): string {
   const now = new Date();
@@ -33,8 +34,8 @@ export default function AdminPage() {
 
   useEffect(() => {
     const loadContests = async () => {
-      const storedUserId = sessionStorage.getItem('userId');
-      
+      const storedUserId = getStoredUserId();
+
       if (!storedUserId) {
         router.push('/');
         return;
@@ -57,7 +58,7 @@ export default function AdminPage() {
     }
 
     try {
-      const storedUserId = sessionStorage.getItem('userId');
+      const storedUserId = getStoredUserId();
       const newContest = await run('Creating contest...', () =>
         createContest({
           location: formData.location,
@@ -97,7 +98,7 @@ export default function AdminPage() {
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('userId');
+    clearStoredUserId();
     router.push('/');
   };
 

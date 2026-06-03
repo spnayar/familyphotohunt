@@ -123,6 +123,51 @@ function runDbPush(databaseUrl) {
   });
 }
 
+function hashString(value) {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
+function pickCoverImageForContest(contestId, coverImages) {
+  const index = hashString(contestId) % coverImages.length;
+  return coverImages[index];
+}
+
+async function backfillContestCoverImages(databaseUrl) {
+  const coverImages = JSON.parse(
+    fs.readFileSync(path.join(projectRoot, 'lib/contest-cover-images.json'), 'utf8')
+  );
+
+  const prisma = new PrismaClient({
+    datasources: { db: { url: databaseUrl } },
+  });
+
+  try {
+    const contests = await prisma.contest.findMany({
+      where: { coverImageUrl: null },
+      select: { id: true },
+    });
+
+    if (contests.length === 0) {
+      return;
+    }
+
+    for (const contest of contests) {
+      await prisma.contest.update({
+        where: { id: contest.id },
+        data: { coverImageUrl: pickCoverImageForContest(contest.id, coverImages) },
+      });
+    }
+
+    console.log(`[db] Assigned cover images to ${contests.length} contest(s).`);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 async function logDatabaseStats(databaseUrl, dataDb, label = 'Records') {
   if (fs.existsSync(dataDb)) {
     const sizeKb = Math.round(fs.statSync(dataDb).size / 1024);
@@ -167,6 +212,8 @@ async function main() {
   }
 
   runDbPush(databaseUrl);
+
+  await backfillContestCoverImages(databaseUrl);
 
   const after = await logDatabaseStats(databaseUrl, dataDb, 'After schema sync');
   assertCountsDidNotDrop(before, after, dataDb, backupDb);

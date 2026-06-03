@@ -12,6 +12,7 @@ import { countVotesByPhoto, getTopVotedPhotoIds, sortPhotosByVoteCount } from '@
 import { getContestPhotosDownloadUrl } from '@/lib/photo-download';
 import { Contest, Category, Photo, Participant } from '@/types';
 import { PageLoader } from '@/components/PageLoader';
+import { getStoredUserId } from '@/lib/auth-session';
 
 type CategoryWinnerSummary = {
   category: Category;
@@ -34,7 +35,7 @@ export default function RevealPage() {
 
   useEffect(() => {
     const loadReveal = async () => {
-      const userId = sessionStorage.getItem('userId');
+      const userId = getStoredUserId();
 
       if (!userId) {
         router.push('/');
