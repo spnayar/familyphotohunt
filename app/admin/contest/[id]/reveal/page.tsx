@@ -13,6 +13,7 @@ import { getContestPhotosDownloadUrl } from '@/lib/photo-download';
 import { getPhotoImageUrl } from '@/lib/photo-image';
 import { Contest, Category, Photo, Participant } from '@/types';
 import { PageLoader } from '@/components/PageLoader';
+import { WinnerRevealCeremony } from '@/components/WinnerRevealCeremony';
 import { getStoredUserId } from '@/lib/auth-session';
 
 type CategoryWinnerSummary = {
@@ -38,6 +39,7 @@ export default function RevealPage() {
   const [revealStage, setRevealStage] = useState<'intro' | 'winner' | 'votes' | 'summary'>('intro');
   const [showCollage, setShowCollage] = useState(false);
   const [allWinners, setAllWinners] = useState<CategoryWinnerSummary[]>([]);
+  const [showCeremony, setShowCeremony] = useState(false);
 
   useEffect(() => {
     const loadReveal = async () => {
@@ -158,6 +160,7 @@ export default function RevealPage() {
               <button
                 onClick={() => {
                   setCurrentCategoryIndex(0);
+                  setShowCeremony(false);
                   setRevealStage('intro');
                   setShowCollage(false);
                 }}
@@ -228,7 +231,7 @@ export default function RevealPage() {
                       <img
                         src={getPhotoImageUrl(photo.id)}
                         alt={participant}
-                        className="w-full h-48 sm:h-64 object-cover rounded-lg border-4 border-yellow-400 shadow-2xl"
+                        className="w-full h-auto max-h-80 object-contain rounded-lg border-4 border-yellow-400 shadow-2xl bg-black/30"
                       />
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black to-transparent p-3 sm:p-4 rounded-b-lg">
                         <div className="text-white font-bold text-base sm:text-lg">{winnerInfo?.category.name}</div>
@@ -314,11 +317,24 @@ export default function RevealPage() {
 
   const { allPhotos, voteCounts, winningPhotos, winners, maxVotes } = currentCategoryData;
 
+  const resetCategoryReveal = () => {
+    setShowCeremony(false);
+    setRevealStage('intro');
+  };
+
+  const handleRevealWinner = () => {
+    setRevealStage('winner');
+    if (currentCategoryData && currentCategoryData.winningPhotos.length > 0) {
+      setShowCeremony(true);
+    }
+  };
+
   const handleNext = () => {
     if (currentCategoryIndex < contest.categories.length - 1) {
       setCurrentCategoryIndex(currentCategoryIndex + 1);
-      setRevealStage('intro');
+      resetCategoryReveal();
     } else {
+      setShowCeremony(false);
       setRevealStage('summary');
     }
   };
@@ -326,7 +342,7 @@ export default function RevealPage() {
   const handlePrevious = () => {
     if (currentCategoryIndex > 0) {
       setCurrentCategoryIndex(currentCategoryIndex - 1);
-      setRevealStage('intro');
+      resetCategoryReveal();
     }
   };
 
@@ -354,7 +370,7 @@ export default function RevealPage() {
         </div>
         <div className="flex flex-wrap items-center justify-center gap-2">
           <button
-            onClick={() => setRevealStage('intro')}
+            onClick={resetCategoryReveal}
             className={`${revealBtn} bg-white/20 hover:bg-white/30`}
           >
             Restart
@@ -396,7 +412,7 @@ export default function RevealPage() {
               And the results are...
             </p>
             <button
-              onClick={() => setRevealStage('winner')}
+              onClick={handleRevealWinner}
               className={`${revealBtnPrimary} bg-yellow-400 text-purple-900 hover:bg-yellow-300 hover:scale-105`}
             >
               Reveal winner
@@ -404,8 +420,24 @@ export default function RevealPage() {
           </div>
         )}
 
+        {revealStage === 'winner' && showCeremony && winningPhotos.length > 0 && (
+          <WinnerRevealCeremony
+            categoryName={currentCategory.name}
+            photoUrl={getPhotoImageUrl(winningPhotos[0].id)}
+            participantName={
+              winners[0]?.name ||
+              contest.participants.find((p) => p.id === winningPhotos[0].participantId)?.name
+            }
+            onComplete={() => setShowCeremony(false)}
+          />
+        )}
+
         {revealStage === 'winner' && (
-          <div className="w-full max-w-5xl text-center animate-fade-in space-y-8 sm:space-y-12">
+          <div
+            className={`w-full max-w-5xl text-center space-y-8 sm:space-y-12 ${
+              showCeremony ? '' : 'animate-fade-in'
+            }`}
+          >
             <h2 className="text-2xl sm:text-4xl md:text-6xl font-bold text-white mb-4 sm:mb-8 leading-tight">
               {currentCategory.name}
             </h2>
@@ -422,7 +454,7 @@ export default function RevealPage() {
                 <div
                   className={`grid gap-4 sm:gap-6 ${
                     winningPhotos.length === 1
-                      ? 'max-w-2xl mx-auto'
+                      ? 'max-w-4xl mx-auto'
                       : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3'
                   }`}
                 >
@@ -430,11 +462,13 @@ export default function RevealPage() {
                     const participant = winners[i] || contest.participants.find((p) => p.id === photo.participantId);
                     return (
                       <div key={photo.id} className="rounded-lg overflow-hidden border-4 border-yellow-400 shadow-2xl">
-                        <img
-                          src={getPhotoImageUrl(photo.id)}
-                          alt={participant?.name}
-                          className="w-full aspect-[4/3] object-cover"
-                        />
+                        <div className="flex justify-center bg-black/30">
+                          <img
+                            src={getPhotoImageUrl(photo.id)}
+                            alt={participant?.name}
+                            className="max-h-[65vh] w-auto max-w-full object-contain"
+                          />
+                        </div>
                         <div className="p-3 sm:p-4 bg-black/70">
                           <div className="text-base sm:text-xl font-bold text-white">📸 {participant?.name}</div>
                         </div>
@@ -477,7 +511,7 @@ export default function RevealPage() {
                     <img
                       src={getPhotoImageUrl(photo.id)}
                       alt={participant?.name}
-                      className="w-full h-44 sm:h-56 object-cover"
+                      className="w-full h-auto max-h-72 sm:max-h-80 object-contain bg-black/20"
                     />
                     <div className="p-3 sm:p-4 bg-gray-900 text-white">
                       <div className="text-xs font-semibold text-gray-400 mb-1">#{index + 1}</div>
