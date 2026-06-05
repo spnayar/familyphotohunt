@@ -423,21 +423,12 @@ export default function RevealPage() {
         {revealStage === 'winner' && showCeremony && winningPhotos.length > 0 && (
           <WinnerRevealCeremony
             categoryName={currentCategory.name}
-            photoUrl={getPhotoImageUrl(winningPhotos[0].id)}
-            participantName={
-              winners[0]?.name ||
-              contest.participants.find((p) => p.id === winningPhotos[0].participantId)?.name
-            }
             onComplete={() => setShowCeremony(false)}
           />
         )}
 
-        {revealStage === 'winner' && (
-          <div
-            className={`w-full max-w-5xl text-center space-y-8 sm:space-y-12 ${
-              showCeremony ? '' : 'animate-fade-in'
-            }`}
-          >
+        {revealStage === 'winner' && !showCeremony && (
+          <div className="w-full max-w-5xl text-center space-y-8 sm:space-y-12 animate-fade-in">
             <h2 className="text-2xl sm:text-4xl md:text-6xl font-bold text-white mb-4 sm:mb-8 leading-tight">
               {currentCategory.name}
             </h2>

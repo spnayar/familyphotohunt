@@ -4,17 +4,10 @@ import { useCallback, useEffect, useState } from 'react';
 
 type WinnerRevealCeremonyProps = {
   categoryName: string;
-  photoUrl?: string;
-  participantName?: string;
   onComplete: () => void;
 };
 
-export function WinnerRevealCeremony({
-  categoryName,
-  photoUrl,
-  participantName,
-  onComplete,
-}: WinnerRevealCeremonyProps) {
+export function WinnerRevealCeremony({ categoryName, onComplete }: WinnerRevealCeremonyProps) {
   const [phase, setPhase] = useState<'intro' | 'envelope-open' | 'curtains-open' | 'exit'>('intro');
   const [skipped, setSkipped] = useState(false);
 
@@ -42,8 +35,8 @@ export function WinnerRevealCeremony({
   return (
     <div
       className={`ceremony-root ${phase === 'exit' ? 'ceremony-exit' : ''} ${
-        phase === 'curtains-open' || phase === 'exit' ? 'ceremony-curtains-open' : ''
-      } ${phase === 'envelope-open' || phase === 'curtains-open' ? 'ceremony-sparkle-active' : ''}`}
+        phase === 'envelope-open' || phase === 'curtains-open' ? 'ceremony-sparkle-active' : ''
+      }`}
       onClick={finish}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') finish();
@@ -53,6 +46,7 @@ export function WinnerRevealCeremony({
       aria-label="Skip reveal animation"
     >
       <div className="ceremony-spotlight" aria-hidden />
+      <div className="ceremony-void" aria-hidden />
 
       <div className={`curtain curtain-left ${phase === 'curtains-open' || phase === 'exit' ? 'curtain-open' : ''}`}>
         <div className="curtain-fold" />
@@ -73,12 +67,8 @@ export function WinnerRevealCeremony({
           <div className="envelope-back" />
           <div className="envelope-body" />
           <div className="envelope-letter">
-            {photoUrl ? (
-              <img src={photoUrl} alt="" className="envelope-photo" />
-            ) : (
-              <span className="envelope-trophy">🏆</span>
-            )}
-            {participantName && <span className="envelope-name">{participantName}</span>}
+            <span className="envelope-mystery">?</span>
+            <span className="envelope-mystery-text">Who will it be?</span>
           </div>
           <div className="envelope-flap" />
           <div className="envelope-front" />
@@ -104,12 +94,6 @@ export function WinnerRevealCeremony({
           background: radial-gradient(ellipse at center, #1a0a2e 0%, #0d0518 70%);
           cursor: pointer;
           animation: ceremony-fade-in 0.4s ease-out;
-          transition: background 0.8s ease;
-        }
-
-        .ceremony-curtains-open {
-          background: transparent;
-          pointer-events: none;
         }
 
         .ceremony-exit {
@@ -128,11 +112,19 @@ export function WinnerRevealCeremony({
           pointer-events: none;
         }
 
+        .ceremony-void {
+          position: absolute;
+          inset: 0;
+          z-index: 68;
+          background: #0d0518;
+          pointer-events: none;
+        }
+
         .curtain {
           position: absolute;
           top: 0;
           bottom: 0;
-          width: 52%;
+          width: 55%;
           z-index: 70;
           display: flex;
           transition: transform 1.1s cubic-bezier(0.4, 0, 0.2, 1);
@@ -291,22 +283,18 @@ export function WinnerRevealCeremony({
           opacity: 1;
         }
 
-        .envelope-photo {
-          width: 100%;
-          max-height: 120px;
-          object-fit: contain;
-          border-radius: 4px;
-        }
-
-        .envelope-trophy {
+        .envelope-mystery {
           font-size: 3rem;
           line-height: 1;
+          font-weight: 800;
+          color: #1a1a2e;
         }
 
-        .envelope-name {
-          font-size: clamp(0.9rem, 3.5vw, 1.15rem);
-          font-weight: 700;
-          color: #1a1a2e;
+        .envelope-mystery-text {
+          font-size: clamp(0.85rem, 3vw, 1rem);
+          font-weight: 600;
+          color: #4a4a5e;
+          letter-spacing: 0.04em;
         }
 
         .ceremony-sparkles {
