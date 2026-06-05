@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Photo } from '@/types';
+import { getPhotoImageUrl } from '@/lib/photo-image';
 
 type VotingPhotoGalleryProps = {
   photos: Photo[];
@@ -16,6 +17,9 @@ type VotingPhotoGalleryProps = {
   onClose: () => void;
 };
 
+const SWIPE_LOCK_MS = 380;
+const TRANSITION_MS = 280;
+
 export function VotingPhotoGallery({
   photos,
   categoryId,
@@ -29,25 +33,49 @@ export function VotingPhotoGallery({
   onClose,
 }: VotingPhotoGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(startIndex);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const dragStartRef = useRef<{ x: number; y: number; time: number; lockedAxis: 'x' | 'y' | null } | null>(
+    null
+  );
+  const swipeLockedRef = useRef(false);
 
   useEffect(() => {
     if (open) {
       setCurrentIndex(Math.min(Math.max(startIndex, 0), Math.max(photos.length - 1, 0)));
+      setDragOffset(0);
+      setIsDragging(false);
+      dragStartRef.current = null;
     }
   }, [open, startIndex, photos.length]);
+
+  const lockSwipe = useCallback(() => {
+    swipeLockedRef.current = true;
+    window.setTimeout(() => {
+      swipeLockedRef.current = false;
+    }, SWIPE_LOCK_MS);
+  }, []);
+
+  const goPrev = useCallback(() => {
+    if (swipeLockedRef.current || photos.length <= 1) return;
+    lockSwipe();
+    setCurrentIndex((i) => (i > 0 ? i - 1 : photos.length - 1));
+  }, [photos.length, lockSwipe]);
+
+  const goNext = useCallback(() => {
+    if (swipeLockedRef.current || photos.length <= 1) return;
+    lockSwipe();
+    setCurrentIndex((i) => (i < photos.length - 1 ? i + 1 : 0));
+  }, [photos.length, lockSwipe]);
 
   useEffect(() => {
     if (!open) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowLeft') {
-        setCurrentIndex((i) => (i > 0 ? i - 1 : photos.length - 1));
-      }
-      if (e.key === 'ArrowRight') {
-        setCurrentIndex((i) => (i < photos.length - 1 ? i + 1 : 0));
-      }
+      if (e.key === 'ArrowLeft') goPrev();
+      if (e.key === 'ArrowRight') goNext();
     };
 
     document.body.style.overflow = 'hidden';
@@ -57,40 +85,122 @@ export function VotingPhotoGallery({
       document.body.style.overflow = '';
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [open, onClose, photos.length]);
+  }, [open, onClose, goPrev, goNext]);
 
-  const goPrev = useCallback(() => {
-    setCurrentIndex((i) => (i > 0 ? i - 1 : photos.length - 1));
-  }, [photos.length]);
+  useEffect(() => {
+    if (!open || photos.length === 0) return;
 
-  const goNext = useCallback(() => {
-    setCurrentIndex((i) => (i < photos.length - 1 ? i + 1 : 0));
-  }, [photos.length]);
+    const preloadIndexes = [
+      (currentIndex + 1) % photos.length,
+      (currentIndex - 1 + photos.length) % photos.length,
+    ];
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartRef.current = {
-      x: e.touches[0].clientX,
-      y: e.touches[0].clientY,
+    for (const index of preloadIndexes) {
+      const image = new Image();
+      image.src = getPhotoImageUrl(photos[index].id);
+    }
+  }, [open, currentIndex, photos]);
+
+  const endDrag = useCallback(
+    (clientX: number, clientY: number) => {
+      const start = dragStartRef.current;
+      dragStartRef.current = null;
+      setIsDragging(false);
+
+      if (!start || swipeLockedRef.current || photos.length <= 1) {
+        setDragOffset(0);
+        return;
+      }
+
+      const deltaX = clientX - start.x;
+      const deltaY = clientY - start.y;
+      const elapsedMs = Math.max(Date.now() - start.time, 1);
+      const width = viewportRef.current?.clientWidth ?? window.innerWidth;
+      const velocityX = Math.abs(deltaX) / elapsedMs;
+
+      const isHorizontal =
+        start.lockedAxis === 'x' ||
+        (start.lockedAxis === null && Math.abs(deltaX) >= Math.abs(deltaY));
+
+      if (!isHorizontal) {
+        setDragOffset(0);
+        return;
+      }
+
+      const distanceThreshold = width * 0.14;
+      const shouldAdvance =
+        Math.abs(deltaX) >= distanceThreshold || (velocityX >= 0.45 && Math.abs(deltaX) >= 24);
+
+      setDragOffset(0);
+
+      if (!shouldAdvance) return;
+
+      if (deltaX < 0) {
+        goNext();
+      } else {
+        goPrev();
+      }
+    },
+    [goNext, goPrev, photos.length]
+  );
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (swipeLockedRef.current || photos.length <= 1) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      time: Date.now(),
+      lockedAxis: null,
     };
+    setIsDragging(true);
+    setDragOffset(0);
+    e.currentTarget.setPointerCapture(e.pointerId);
   };
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    const start = touchStartRef.current;
-    if (!start) return;
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const start = dragStartRef.current;
+    if (!start || !isDragging) return;
 
-    const deltaX = e.changedTouches[0].clientX - start.x;
-    const deltaY = e.changedTouches[0].clientY - start.y;
+    const deltaX = e.clientX - start.x;
+    const deltaY = e.clientY - start.y;
 
-    touchStartRef.current = null;
+    if (start.lockedAxis === null) {
+      if (Math.abs(deltaX) < 8 && Math.abs(deltaY) < 8) return;
+      start.lockedAxis = Math.abs(deltaX) >= Math.abs(deltaY) ? 'x' : 'y';
+    }
 
-    if (Math.abs(deltaX) < 50 || Math.abs(deltaX) < Math.abs(deltaY)) {
+    if (start.lockedAxis === 'y') {
+      setDragOffset(0);
       return;
     }
 
-    if (deltaX < 0) {
-      goNext();
-    } else {
-      goPrev();
+    const width = viewportRef.current?.clientWidth ?? window.innerWidth;
+    const maxDrag = width * 0.45;
+    const resisted =
+      deltaX < 0 && currentIndex >= photos.length - 1
+        ? deltaX * 0.25
+        : deltaX > 0 && currentIndex <= 0
+          ? deltaX * 0.25
+          : deltaX;
+
+    setDragOffset(Math.max(-maxDrag, Math.min(maxDrag, resisted)));
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    endDrag(e.clientX, e.clientY);
+  };
+
+  const handlePointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    dragStartRef.current = null;
+    setIsDragging(false);
+    setDragOffset(0);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
     }
   };
 
@@ -123,16 +233,20 @@ export function VotingPhotoGallery({
       </div>
 
       <div
-        className="relative flex-1 min-h-0 flex items-center justify-center touch-pan-y"
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
+        ref={viewportRef}
+        className="relative flex-1 min-h-0 overflow-hidden select-none"
+        style={{ touchAction: photos.length > 1 ? 'none' : 'auto' }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
       >
         {photos.length > 1 && (
           <>
             <button
               type="button"
               onClick={goPrev}
-              className="hidden sm:flex absolute left-2 top-1/2 -translate-y-1/2 z-10 w-12 h-12 items-center justify-center rounded-full bg-black/50 text-white text-2xl hover:bg-black/70 touch-manipulation"
+              className="hidden sm:flex absolute left-2 top-1/2 -translate-y-1/2 z-20 w-12 h-12 items-center justify-center rounded-full bg-black/50 text-white text-2xl hover:bg-black/70 touch-manipulation"
               aria-label="Previous photo"
             >
               ‹
@@ -140,7 +254,7 @@ export function VotingPhotoGallery({
             <button
               type="button"
               onClick={goNext}
-              className="hidden sm:flex absolute right-2 top-1/2 -translate-y-1/2 z-10 w-12 h-12 items-center justify-center rounded-full bg-black/50 text-white text-2xl hover:bg-black/70 touch-manipulation"
+              className="hidden sm:flex absolute right-2 top-1/2 -translate-y-1/2 z-20 w-12 h-12 items-center justify-center rounded-full bg-black/50 text-white text-2xl hover:bg-black/70 touch-manipulation"
               aria-label="Next photo"
             >
               ›
@@ -148,20 +262,35 @@ export function VotingPhotoGallery({
           </>
         )}
 
-        <img
-          key={currentPhoto.id}
-          src={currentPhoto.url}
-          alt={`Photo ${currentIndex + 1} for ${categoryName}`}
-          className="w-full h-full object-contain select-none"
-          draggable={false}
-        />
+        <div
+          className="flex h-full will-change-transform"
+          style={{
+            transform: `translateX(calc(-${currentIndex * 100}% + ${dragOffset}px))`,
+            transition: isDragging ? 'none' : `transform ${TRANSITION_MS}ms ease-out`,
+          }}
+        >
+          {photos.map((photo) => (
+            <div
+              key={photo.id}
+              className="h-full w-full shrink-0 flex items-center justify-center px-1"
+            >
+              <img
+                src={getPhotoImageUrl(photo.id)}
+                alt={`Photo for ${categoryName}`}
+                className="max-h-full max-w-full object-contain pointer-events-none"
+                draggable={false}
+                decoding="async"
+              />
+            </div>
+          ))}
+        </div>
 
         {photos.length > 1 && (
-          <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-1.5 px-4 sm:hidden pointer-events-none">
+          <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-1.5 px-4 sm:hidden pointer-events-none z-10">
             {photos.map((photo, index) => (
               <span
                 key={photo.id}
-                className={`h-1.5 rounded-full transition-all ${
+                className={`h-1.5 rounded-full transition-all duration-200 ${
                   index === currentIndex ? 'w-6 bg-white' : 'w-1.5 bg-white/40'
                 }`}
               />
@@ -210,12 +339,18 @@ export function VotingPhotoGallery({
                     index === currentIndex
                       ? 'border-white ring-2 ring-blue-400'
                       : thumbSelected
-                      ? 'border-blue-400'
-                      : 'border-white/30 opacity-70 hover:opacity-100'
+                        ? 'border-blue-400'
+                        : 'border-white/30 opacity-70 hover:opacity-100'
                   }`}
                   aria-label={`View photo ${index + 1}`}
                 >
-                  <img src={photo.url} alt="" className="w-full h-full object-cover" />
+                  <img
+                    src={getPhotoImageUrl(photo.id)}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    decoding="async"
+                  />
                   {thumbIsMine && (
                     <span className="absolute inset-0 bg-black/40 text-[8px] text-white flex items-end justify-center pb-0.5">
                       You

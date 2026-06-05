@@ -14,7 +14,7 @@ import {
   getPendingJoinCode,
   setPendingJoinCode,
 } from '@/lib/join-code';
-import { getStoredUserId, setStoredUserId } from '@/lib/auth-session';
+import { getStoredUserId, hasLoggedInOnThisDevice, setStoredUserId } from '@/lib/auth-session';
 import { touchUserActivity } from '@/lib/user-activity';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { PageLoader } from '@/components/PageLoader';
@@ -33,6 +33,7 @@ function LoginContent() {
   const [loadingMessage, setLoadingMessage] = useState('Please wait...');
   const [codePreview, setCodePreview] = useState<{ location: string; date: string } | null>(null);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [isReturningUser, setIsReturningUser] = useState(false);
 
   useEffect(() => {
     const registerParam = searchParams.get('register');
@@ -61,6 +62,7 @@ function LoginContent() {
       return;
     }
 
+    setIsReturningUser(hasLoggedInOnThisDevice());
     setIsCheckingSession(false);
   }, [searchParams, router]);
 
@@ -192,25 +194,41 @@ function LoginContent() {
           <div className="flex items-center justify-center gap-2 mb-3">
             <span className="text-4xl">📷</span>
             <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-              {isRegistering ? 'Create your account' : 'Log in'}
+              {isRegistering
+                ? 'Create your account'
+                : isReturningUser
+                  ? 'Welcome back'
+                  : 'Log in'}
             </h1>
           </div>
           {codePreview ? (
             <p className="text-sm text-gray-600">
-              Join <strong>{codePreview.location}</strong>
-              {' · '}
-              {new Date(codePreview.date + '-01').toLocaleDateString('en-US', {
-                month: 'long',
-                year: 'numeric',
-              })}
+              {isReturningUser ? (
+                <>
+                  After you sign in, you&apos;ll join <strong>{codePreview.location}</strong>
+                </>
+              ) : (
+                <>
+                  Join <strong>{codePreview.location}</strong>
+                  {' · '}
+                  {new Date(codePreview.date + '-01').toLocaleDateString('en-US', {
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </>
+              )}
             </p>
           ) : joinCode.trim().length === 4 ? (
             <p className="text-sm text-amber-700">Check your contest code and try again from the home page.</p>
           ) : (
             <p className="text-sm text-gray-600">
               {isRegistering
-                ? 'Create an account to join your contest.'
-                : 'Sign in to continue to your contest.'}
+                ? isReturningUser
+                  ? 'Create another account, or log in below if you already have one.'
+                  : 'Create an account to join your contest.'
+                : isReturningUser
+                  ? 'Sign in to see your contests — no join code needed.'
+                  : 'Sign in to continue to your contest.'}
             </p>
           )}
         </div>
@@ -315,7 +333,11 @@ function LoginContent() {
               disabled={loading}
               className="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white py-3 rounded-lg font-bold mb-3 disabled:opacity-50 min-h-[44px]"
             >
-              {loading ? 'Logging in...' : joinCode.trim() ? 'Log in & join' : 'Log in'}
+              {loading
+                ? 'Logging in...'
+                : joinCode.trim() && !isReturningUser
+                  ? 'Log in & join'
+                  : 'Log in'}
             </button>
             <button
               type="button"
@@ -332,8 +354,11 @@ function LoginContent() {
         )}
 
         <div className="mt-6 pt-4 border-t border-gray-200 text-center space-y-3">
-          <Link href="/" className="text-sm text-gray-600 hover:text-blue-700">
-            ← Back to enter a different code
+          <Link
+            href={isReturningUser ? '/?join=1' : '/'}
+            className="text-sm text-gray-600 hover:text-blue-700"
+          >
+            {isReturningUser ? 'Join a different contest' : '← Back to enter a different code'}
           </Link>
           <Link href="/help/participants" className="block text-sm text-gray-600 hover:text-blue-700">
             Help guide for participants

@@ -2,39 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import { prisma } from '@/lib/prisma';
 import { countVotesByPhoto, getTopVotedPhotoIds } from '@/lib/vote-results';
+import { getImageBuffer, getImageContentType } from '@/lib/photo-image';
 import { buildPhotoDownloadFilename, sanitizeDownloadFilename } from '@/lib/photo-download';
-
-async function getImageBuffer(url: string): Promise<Buffer | null> {
-  if (url.startsWith('data:')) {
-    const base64 = url.split(',')[1];
-    if (!base64) return null;
-    return Buffer.from(base64, 'base64');
-  }
-
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    try {
-      const response = await fetch(url);
-      if (!response.ok) return null;
-      return Buffer.from(await response.arrayBuffer());
-    } catch {
-      return null;
-    }
-  }
-
-  return null;
-}
-
-function getContentType(fileName: string, url: string): string {
-  if (url.startsWith('data:image/')) {
-    const match = url.match(/^data:(image\/[^;]+);/);
-    if (match) return match[1];
-  }
-  const ext = fileName.toLowerCase();
-  if (ext.endsWith('.png')) return 'image/png';
-  if (ext.endsWith('.webp')) return 'image/webp';
-  if (ext.endsWith('.gif')) return 'image/gif';
-  return 'image/jpeg';
-}
 
 export async function GET(
   request: NextRequest,
@@ -81,7 +50,7 @@ export async function GET(
         photo.fileName
       );
 
-      const contentType = getContentType(photo.fileName, photo.url);
+      const contentType = getImageContentType(photo.fileName, photo.url);
       return new NextResponse(new Uint8Array(buffer), {
         headers: {
           'Content-Type': contentType,

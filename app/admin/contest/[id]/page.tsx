@@ -424,42 +424,71 @@ export default function ContestAdminPage() {
           </div>
 
           {isResultsStage(contest.status) && (
-            <div className="mb-6 sm:mb-8 rounded-xl border-2 border-purple-300 bg-white p-6 sm:p-10 shadow-lg">
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 text-center">
+            <div className="mb-6 sm:mb-8 rounded-xl border-2 border-purple-300 bg-white p-5 sm:p-8 shadow-lg">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2 text-center">
                 What&apos;s next?
               </h2>
-              <p className="text-center text-gray-600 mb-8 text-base sm:text-lg">
-                The contest is complete. View the full results or start the TV winner reveal.
+              <p className="text-center text-gray-600 mb-6 text-sm sm:text-base max-w-2xl mx-auto">
+                Choose how you want to share the results with your group.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 max-w-3xl mx-auto">
-                <Link
-                  href={`/admin/contest/${contestId}/results`}
-                  className="flex-1 inline-flex items-center justify-center bg-purple-600 text-white px-8 py-5 rounded-xl hover:bg-purple-700 active:bg-purple-800 transition-colors touch-manipulation text-lg sm:text-xl font-bold shadow-md"
-                >
-                  View Results
-                </Link>
-                <Link
-                  href={`/admin/contest/${contestId}/reveal`}
-                  className="flex-1 inline-flex items-center justify-center bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-8 py-5 rounded-xl hover:from-yellow-600 hover:to-orange-600 active:from-yellow-700 active:to-orange-700 transition-colors text-lg sm:text-xl font-bold shadow-md touch-manipulation"
-                >
-                  🎬 Start Winner Reveal
-                </Link>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
+                <div className="rounded-xl border-2 border-purple-200 bg-purple-50/50 p-5 sm:p-6 flex flex-col">
+                  <div className="mb-3">
+                    <span className="inline-block text-xs font-semibold uppercase tracking-wide text-purple-700 bg-purple-100 px-2 py-1 rounded">
+                      Reference page
+                    </span>
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">View Results</h3>
+                  <p className="text-sm text-gray-700 mb-4 flex-1">
+                    One scrollable page with <strong>every category</strong>, the <strong>winner(s)</strong>,
+                    <strong> all submissions</strong>, and <strong>vote counts</strong>. Best for reviewing
+                    outcomes, comparing scores, or saving photos on your phone.
+                  </p>
+                  <Link
+                    href={`/admin/contest/${contestId}/results`}
+                    className="inline-flex items-center justify-center bg-purple-600 text-white px-6 py-4 rounded-xl hover:bg-purple-700 active:bg-purple-800 transition-colors touch-manipulation text-base sm:text-lg font-bold shadow-md min-h-[48px]"
+                  >
+                    View Results
+                  </Link>
+                </div>
+
+                <div className="rounded-xl border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50 p-5 sm:p-6 flex flex-col">
+                  <div className="mb-3">
+                    <span className="inline-block text-xs font-semibold uppercase tracking-wide text-amber-800 bg-amber-100 px-2 py-1 rounded">
+                      Presentation mode
+                    </span>
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">Start Winner Reveal</h3>
+                  <p className="text-sm text-gray-700 mb-4 flex-1">
+                    A step-by-step show that reveals <strong>one category at a time</strong> — great when you
+                    <strong> cast to a TV</strong> from your phone or laptop and want a fun, dramatic reveal
+                    with the group watching together.
+                  </p>
+                  <Link
+                    href={`/admin/contest/${contestId}/reveal`}
+                    className="inline-flex items-center justify-center bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-6 py-4 rounded-xl hover:from-yellow-600 hover:to-orange-600 active:from-yellow-700 active:to-orange-700 transition-colors touch-manipulation text-base sm:text-lg font-bold shadow-md min-h-[48px]"
+                  >
+                    Start Winner Reveal
+                  </Link>
+                </div>
               </div>
-              <div className="mt-8 pt-6 border-t border-gray-200 text-center">
+
+              <div className="mt-6 pt-6 border-t border-gray-200 text-center max-w-2xl mx-auto">
                 <p className="text-sm text-gray-600 mb-2">
                   On a phone, open <strong>View Results</strong> and tap <strong>Save to Photos</strong> on any image.
                 </p>
                 <div className="flex flex-wrap justify-center gap-3">
                   <a
                     href={getContestPhotosDownloadUrl(contestId)}
-                    className="text-sm text-blue-700 hover:text-blue-900 underline touch-manipulation"
+                    className="text-sm text-blue-700 hover:text-blue-900 underline touch-manipulation min-h-[44px] inline-flex items-center"
                   >
                     Download all photos (.zip)
                   </a>
                   <span className="text-gray-300" aria-hidden="true">·</span>
                   <a
                     href={getContestPhotosDownloadUrl(contestId, { scope: 'winners' })}
-                    className="text-sm text-blue-700 hover:text-blue-900 underline touch-manipulation"
+                    className="text-sm text-blue-700 hover:text-blue-900 underline touch-manipulation min-h-[44px] inline-flex items-center"
                   >
                     Download winners (.zip)
                   </a>

@@ -10,6 +10,7 @@ import {
 } from '@/lib/store';
 import { countVotesByPhoto, getTopVotedPhotoIds, sortPhotosByVoteCount } from '@/lib/vote-results';
 import { getContestPhotosDownloadUrl } from '@/lib/photo-download';
+import { getPhotoImageUrl } from '@/lib/photo-image';
 import { Contest, Category, Photo, Participant } from '@/types';
 import { PageLoader } from '@/components/PageLoader';
 import { getStoredUserId } from '@/lib/auth-session';
@@ -20,6 +21,11 @@ type CategoryWinnerSummary = {
   winnerNames: string[];
   winnerVotes: number;
 };
+
+const revealBtn =
+  'px-3 py-2.5 sm:px-4 sm:py-2 rounded-lg text-sm font-medium min-h-[44px] touch-manipulation transition-colors';
+const revealBtnPrimary =
+  'w-full sm:w-auto px-8 py-4 sm:px-10 sm:py-5 rounded-xl text-lg sm:text-2xl font-bold shadow-2xl transition-all touch-manipulation min-h-[48px]';
 
 export default function RevealPage() {
   const params = useParams();
@@ -146,52 +152,54 @@ export default function RevealPage() {
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white overflow-auto">
-        <div className="sticky top-0 z-50 bg-black bg-opacity-70 rounded-lg p-4 m-4 backdrop-blur-sm">
-          <div className="flex justify-between items-center">
-            <div className="flex gap-4">
+        <div className="sticky top-0 z-50 bg-black/80 backdrop-blur-sm px-3 py-3 sm:m-4 sm:rounded-lg sm:p-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center">
+            <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
               <button
                 onClick={() => {
                   setCurrentCategoryIndex(0);
                   setRevealStage('intro');
                   setShowCollage(false);
                 }}
-                className="px-4 py-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
+                className={`${revealBtn} bg-white/20 hover:bg-white/30`}
               >
-                ← Back to Categories
+                ← Categories
               </button>
               <button
                 onClick={() => setShowCollage(!showCollage)}
-                className="px-4 py-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
+                className={`${revealBtn} bg-white/20 hover:bg-white/30`}
               >
-                {showCollage ? 'Show List View' : 'Show Collage'}
+                {showCollage ? 'List view' : 'Collage'}
               </button>
             </div>
-          <a
-            href={getContestPhotosDownloadUrl(contestId)}
-            className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700"
-          >
-            All photos
-          </a>
-          <a
-            href={getContestPhotosDownloadUrl(contestId, { scope: 'winners' })}
-            className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700"
-          >
-            Winners
-          </a>
-          <Link
-            href={`/admin/contest/${contestId}`}
-            className="px-4 py-2 bg-red-600 rounded-lg hover:bg-red-700"
-          >
-            Exit
-          </Link>
+            <div className="flex flex-wrap gap-2 justify-center sm:justify-end">
+              <a
+                href={getContestPhotosDownloadUrl(contestId)}
+                className={`${revealBtn} bg-blue-600 hover:bg-blue-700`}
+              >
+                All photos
+              </a>
+              <a
+                href={getContestPhotosDownloadUrl(contestId, { scope: 'winners' })}
+                className={`${revealBtn} bg-blue-600 hover:bg-blue-700`}
+              >
+                Winners
+              </a>
+              <Link
+                href={`/admin/contest/${contestId}`}
+                className={`${revealBtn} bg-red-600 hover:bg-red-700`}
+              >
+                Exit
+              </Link>
+            </div>
           </div>
         </div>
 
-        <div className="container mx-auto px-8 py-12">
-          <div className="text-center mb-12">
-            <h1 className="text-7xl font-bold mb-4 animate-pulse">🏆 All Winners! 🏆</h1>
-            <p className="text-3xl text-gray-300">{contest.location}</p>
-            <p className="text-2xl text-gray-400 mt-2">
+        <div className="container mx-auto px-4 sm:px-8 py-8 sm:py-12">
+          <div className="text-center mb-8 sm:mb-12">
+            <h1 className="text-4xl sm:text-6xl md:text-7xl font-bold mb-4 animate-pulse">🏆 All Winners! 🏆</h1>
+            <p className="text-xl sm:text-3xl text-gray-300">{contest.location}</p>
+            <p className="text-base sm:text-2xl text-gray-400 mt-2">
               {new Date(contest.date + '-01').toLocaleDateString('en-US', {
                 month: 'long',
                 year: 'numeric',
@@ -201,8 +209,8 @@ export default function RevealPage() {
 
           {showCollage ? (
             <div className="max-w-7xl mx-auto">
-              <h2 className="text-5xl font-bold text-center mb-8">Winning Photos Collage</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <h2 className="text-2xl sm:text-4xl md:text-5xl font-bold text-center mb-6 sm:mb-8">Winning Photos Collage</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {winningPhotos.map((photo, index) => {
                   const winnerInfo = allWinners.find((w) =>
                     w.winningPhotos.some((p) => p.id === photo.id)
@@ -218,12 +226,12 @@ export default function RevealPage() {
                       style={{ animationDelay: `${index * 100}ms` }}
                     >
                       <img
-                        src={photo.url}
+                        src={getPhotoImageUrl(photo.id)}
                         alt={participant}
-                        className="w-full h-64 object-cover rounded-lg border-4 border-yellow-400 shadow-2xl transition-transform duration-300 group-hover:scale-110"
+                        className="w-full h-48 sm:h-64 object-cover rounded-lg border-4 border-yellow-400 shadow-2xl"
                       />
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black to-transparent p-4 rounded-b-lg">
-                        <div className="text-white font-bold text-lg">{winnerInfo?.category.name}</div>
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black to-transparent p-3 sm:p-4 rounded-b-lg">
+                        <div className="text-white font-bold text-base sm:text-lg">{winnerInfo?.category.name}</div>
                         <div className="text-gray-200 text-sm">📸 {participant}</div>
                       </div>
                     </div>
@@ -232,14 +240,14 @@ export default function RevealPage() {
               </div>
             </div>
           ) : (
-            <div className="max-w-6xl mx-auto space-y-8">
+            <div className="max-w-6xl mx-auto space-y-5 sm:space-y-8">
               {allWinners.map((winnerInfo, index) => (
                 <div
                   key={winnerInfo.category.id}
-                  className="bg-white bg-opacity-10 rounded-lg p-8 backdrop-blur-sm border-2 border-yellow-400 animate-fade-in"
+                  className="bg-white/10 rounded-lg p-4 sm:p-8 backdrop-blur-sm border-2 border-yellow-400 animate-fade-in"
                   style={{ animationDelay: `${index * 150}ms` }}
                 >
-                  <h2 className="text-4xl font-bold mb-6 text-white">
+                  <h2 className="text-2xl sm:text-4xl font-bold mb-4 sm:mb-6 text-white">
                     {winnerInfo.category.name}
                   </h2>
 
@@ -258,7 +266,7 @@ export default function RevealPage() {
                           </div>
                         </div>
                         <img
-                          src={photo.url}
+                          src={getPhotoImageUrl(photo.id)}
                           alt={`Winner: ${winnerInfo.winnerNames[photoIndex]}`}
                           className="w-full h-auto rounded-lg border-4 border-yellow-400 shadow-xl"
                         />
@@ -279,20 +287,19 @@ export default function RevealPage() {
 
   if (!currentCategory && (revealStage as string) !== 'summary') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center text-white">
-        <div className="text-center">
-          <h1 className="text-6xl font-bold mb-4">🎉 All Categories Revealed! 🎉</h1>
-          <p className="text-2xl mb-8">Thank you for participating!</p>
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center text-white px-4">
+        <div className="text-center max-w-lg">
+          <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold mb-4">🎉 All Categories Revealed! 🎉</h1>
+          <p className="text-lg sm:text-2xl mb-8">Thank you for participating!</p>
           <button
             onClick={() => setRevealStage('summary')}
-            className="inline-block bg-yellow-400 text-purple-900 px-8 py-4 rounded-lg text-xl font-semibold hover:bg-yellow-300 mb-4"
+            className={`${revealBtnPrimary} bg-yellow-400 text-purple-900 hover:bg-yellow-300 mb-4 block mx-auto`}
           >
             View All Winners
           </button>
-          <br />
           <Link
             href={`/admin/contest/${contestId}`}
-            className="inline-block bg-white text-purple-900 px-8 py-4 rounded-lg text-xl font-semibold hover:bg-gray-100"
+            className={`${revealBtnPrimary} inline-block bg-white text-purple-900 hover:bg-gray-100`}
           >
             Back to Contest
           </Link>
@@ -324,71 +331,73 @@ export default function RevealPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white overflow-hidden">
-      <div className="absolute top-4 left-4 right-4 z-50 flex justify-between items-center bg-black bg-opacity-70 rounded-lg p-4 backdrop-blur-sm">
-        <div className="flex gap-4 items-center">
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white overflow-x-hidden">
+      <div className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-sm px-3 py-3 sm:px-4 sm:py-4">
+        <div className="flex items-center justify-between gap-2 mb-2">
           <button
             onClick={handlePrevious}
             disabled={currentCategoryIndex === 0}
-            className="px-4 py-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className={`${revealBtn} bg-white/20 hover:bg-white/30 disabled:opacity-30 disabled:cursor-not-allowed`}
           >
-            ← Previous
+            ← Prev
           </button>
-          <span className="text-lg font-semibold">
-            Category {currentCategoryIndex + 1} of {contest.categories.length}
+          <span className="text-xs sm:text-lg font-semibold text-center px-1">
+            {currentCategoryIndex + 1} / {contest.categories.length}
           </span>
           <button
             onClick={handleNext}
             disabled={currentCategoryIndex === contest.categories.length - 1}
-            className="px-4 py-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className={`${revealBtn} bg-white/20 hover:bg-white/30 disabled:opacity-30 disabled:cursor-not-allowed`}
           >
             Next →
           </button>
         </div>
-        <div className="flex gap-4 items-center">
-          <div className="text-sm text-gray-300 hidden md:block">
-            Esc to exit
-          </div>
+        <div className="flex flex-wrap items-center justify-center gap-2">
           <button
             onClick={() => setRevealStage('intro')}
-            className="px-4 py-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition-all"
+            className={`${revealBtn} bg-white/20 hover:bg-white/30`}
           >
-            Restart category
+            Restart
           </button>
           <a
             href={getContestPhotosDownloadUrl(contestId)}
-            className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition-all"
+            className={`${revealBtn} bg-blue-600 hover:bg-blue-700`}
           >
             All photos
           </a>
           <a
             href={getContestPhotosDownloadUrl(contestId, { scope: 'winners' })}
-            className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition-all"
+            className={`${revealBtn} bg-blue-600 hover:bg-blue-700 hidden sm:inline-flex`}
           >
             Winners
           </a>
           <Link
             href={`/admin/contest/${contestId}`}
-            className="px-4 py-2 bg-red-600 rounded-lg hover:bg-red-700 transition-all"
+            className={`${revealBtn} bg-red-600 hover:bg-red-700`}
           >
             Exit
           </Link>
         </div>
+        <p className="text-center text-[11px] sm:text-xs text-gray-400 mt-2 sm:hidden">
+          Best on a TV — use screen mirroring or AirPlay from your phone
+        </p>
       </div>
 
-      <div className="flex flex-col items-center justify-center min-h-screen p-8 pt-24">
+      <div className="flex flex-col items-center justify-center min-h-screen px-4 sm:px-8 pt-36 sm:pt-32 pb-8 overflow-y-auto">
         {revealStage === 'intro' && (
-          <div className="text-center animate-fade-in">
-            <div className="mb-8">
-              <div className="text-9xl mb-4 animate-bounce">📸</div>
+          <div className="text-center animate-fade-in w-full max-w-3xl">
+            <div className="mb-4 sm:mb-8">
+              <div className="text-6xl sm:text-8xl md:text-9xl mb-4 animate-bounce">📸</div>
             </div>
-            <h1 className="text-8xl font-bold mb-8 animate-pulse">
+            <h1 className="text-3xl sm:text-5xl md:text-7xl font-bold mb-4 sm:mb-8 animate-pulse leading-tight">
               {currentCategory.name}
             </h1>
-            <p className="text-4xl text-gray-300 mb-12 animate-fade-in-delay">And the results are...</p>
+            <p className="text-lg sm:text-2xl md:text-4xl text-gray-300 mb-8 sm:mb-12 animate-fade-in-delay">
+              And the results are...
+            </p>
             <button
               onClick={() => setRevealStage('winner')}
-              className="px-10 py-5 bg-yellow-400 text-purple-900 rounded-xl text-2xl font-bold hover:bg-yellow-300 shadow-2xl transition-all hover:scale-105"
+              className={`${revealBtnPrimary} bg-yellow-400 text-purple-900 hover:bg-yellow-300 hover:scale-105`}
             >
               Reveal winner
             </button>
@@ -396,26 +405,38 @@ export default function RevealPage() {
         )}
 
         {revealStage === 'winner' && (
-          <div className="w-full max-w-5xl text-center animate-fade-in space-y-12">
-            <h2 className="text-6xl font-bold text-white mb-8">{currentCategory.name}</h2>
+          <div className="w-full max-w-5xl text-center animate-fade-in space-y-8 sm:space-y-12">
+            <h2 className="text-2xl sm:text-4xl md:text-6xl font-bold text-white mb-4 sm:mb-8 leading-tight">
+              {currentCategory.name}
+            </h2>
 
             {winningPhotos.length > 0 ? (
-              <div className="mb-10">
-                <div className="text-6xl mb-4">🏆</div>
-                <h3 className="text-4xl font-bold text-white mb-2">
+              <div className="mb-6 sm:mb-10">
+                <div className="text-4xl sm:text-6xl mb-4">🏆</div>
+                <h3 className="text-2xl sm:text-4xl font-bold text-white mb-2">
                   {winningPhotos.length === 1 ? 'Winner!' : 'Winners! (tie)'}
                 </h3>
-                <p className="text-2xl text-gray-300 mb-6">
+                <p className="text-lg sm:text-2xl text-gray-300 mb-6">
                   {maxVotes} vote{maxVotes !== 1 ? 's' : ''} each
                 </p>
-                <div className={`grid gap-6 ${winningPhotos.length === 1 ? 'max-w-2xl mx-auto' : 'grid-cols-2 md:grid-cols-3'}`}>
+                <div
+                  className={`grid gap-4 sm:gap-6 ${
+                    winningPhotos.length === 1
+                      ? 'max-w-2xl mx-auto'
+                      : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3'
+                  }`}
+                >
                   {winningPhotos.map((photo, i) => {
                     const participant = winners[i] || contest.participants.find((p) => p.id === photo.participantId);
                     return (
                       <div key={photo.id} className="rounded-lg overflow-hidden border-4 border-yellow-400 shadow-2xl">
-                        <img src={photo.url} alt={participant?.name} className="w-full aspect-[4/3] object-cover" />
-                        <div className="p-4 bg-black/70">
-                          <div className="text-xl font-bold text-white">📸 {participant?.name}</div>
+                        <img
+                          src={getPhotoImageUrl(photo.id)}
+                          alt={participant?.name}
+                          className="w-full aspect-[4/3] object-cover"
+                        />
+                        <div className="p-3 sm:p-4 bg-black/70">
+                          <div className="text-base sm:text-xl font-bold text-white">📸 {participant?.name}</div>
                         </div>
                       </div>
                     );
@@ -423,12 +444,12 @@ export default function RevealPage() {
                 </div>
               </div>
             ) : (
-              <p className="text-2xl text-gray-400">No votes in this category.</p>
+              <p className="text-lg sm:text-2xl text-gray-400">No votes in this category.</p>
             )}
 
             <button
               onClick={() => setRevealStage('votes')}
-              className="px-10 py-5 bg-white text-purple-900 rounded-xl text-xl font-bold hover:bg-gray-200 shadow-2xl transition-all"
+              className={`${revealBtnPrimary} bg-white text-purple-900 hover:bg-gray-200`}
             >
               Show all photos & votes
             </button>
@@ -437,8 +458,10 @@ export default function RevealPage() {
 
         {revealStage === 'votes' && (
           <div className="w-full max-w-6xl animate-fade-in">
-            <h2 className="text-5xl font-bold text-center mb-10">{currentCategory.name} — All submissions</h2>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+            <h2 className="text-xl sm:text-3xl md:text-5xl font-bold text-center mb-6 sm:mb-10 leading-tight">
+              {currentCategory.name} — All submissions
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-12">
               {allPhotos.map((photo, index) => {
                 const participant = contest.participants.find((p) => p.id === photo.participantId);
                 const voteCount = voteCounts[photo.id] || 0;
@@ -451,10 +474,14 @@ export default function RevealPage() {
                       isWinner ? 'border-amber-400 shadow-lg shadow-amber-400/30' : 'border-white/30'
                     }`}
                   >
-                    <img src={photo.url} alt={participant?.name} className="w-full h-56 object-cover" />
-                    <div className="p-4 bg-gray-900 text-white">
+                    <img
+                      src={getPhotoImageUrl(photo.id)}
+                      alt={participant?.name}
+                      className="w-full h-44 sm:h-56 object-cover"
+                    />
+                    <div className="p-3 sm:p-4 bg-gray-900 text-white">
                       <div className="text-xs font-semibold text-gray-400 mb-1">#{index + 1}</div>
-                      <div className="text-lg font-bold mb-1">
+                      <div className="text-base sm:text-lg font-bold mb-1">
                         {participant?.name || 'Unknown'}
                       </div>
                       <div className="text-sm text-gray-300">
@@ -468,7 +495,7 @@ export default function RevealPage() {
             <div className="text-center">
               <button
                 onClick={handleNext}
-                className="px-10 py-5 bg-yellow-400 text-purple-900 rounded-xl text-2xl font-bold hover:bg-yellow-300 shadow-2xl transition-all hover:scale-105"
+                className={`${revealBtnPrimary} bg-yellow-400 text-purple-900 hover:bg-yellow-300 hover:scale-105`}
               >
                 {currentCategoryIndex < contest.categories.length - 1 ? 'Next category →' : '🎉 View all winners'}
               </button>

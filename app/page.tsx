@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { getContestsForUser, getContestsCreatedByUser, joinContestWithCode, lookupContestByJoinCode, getUser } from '@/lib/store';
 import { clearPendingJoinCode, getPendingJoinCode, setPendingJoinCode } from '@/lib/join-code';
-import { clearStoredUserId, getStoredUserId } from '@/lib/auth-session';
+import { clearStoredUserId, getStoredUserId, hasLoggedInOnThisDevice } from '@/lib/auth-session';
 import { touchUserActivity } from '@/lib/user-activity';
 import { getContestCoverImage } from '@/lib/contest-cover-image';
 import { canShowJoinCode, getContestStageInfo } from '@/lib/contest-status';
@@ -29,6 +29,8 @@ function HomeContent() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [codePreview, setCodePreview] = useState<{ location: string; date: string } | null>(null);
   const [codeLookupError, setCodeLookupError] = useState('');
+  const [isReturningUser, setIsReturningUser] = useState(false);
+  const [showJoinCodeForm, setShowJoinCodeForm] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -36,6 +38,10 @@ function HomeContent() {
     if (typeof window !== 'undefined') {
       void (async () => {
         try {
+          const returning = hasLoggedInOnThisDevice();
+          setIsReturningUser(returning);
+          setShowJoinCodeForm(!returning || searchParams.get('join') === '1');
+
           const codeFromUrl = searchParams.get('code');
           const codeFromStorage = getPendingJoinCode();
           const initialCode = (codeFromUrl || codeFromStorage || '').toUpperCase().trim();
@@ -607,7 +613,6 @@ function HomeContent() {
 
       <div className="max-w-md w-full bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-6 sm:p-8 relative z-10 border-2 border-white/50">
         <div className="text-center mb-6 sm:mb-8">
-          {/* Fun header with icons */}
           <div className="flex items-center justify-center gap-3 mb-4">
             <span className="text-5xl sm:text-6xl">📷</span>
             <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent" style={{ fontFamily: 'Georgia, serif' }}>
@@ -615,17 +620,31 @@ function HomeContent() {
             </h1>
             <span className="text-5xl sm:text-6xl">🏆</span>
           </div>
-          
-          <p className="text-base sm:text-lg text-gray-700 font-medium mb-2">
-            🎯 Ready to play? Enter your contest code to get started.
-          </p>
-          <p className="text-sm text-gray-600">
-            {joinCode.trim().length === 4 && codePreview
-              ? `Join ${codePreview.location} — log in or create an account on the next screen.`
-              : 'Upload, rank, and vote on amazing vacation photos'}
-          </p>
-          
-          {/* Fun feature highlights */}
+
+          {isReturningUser ? (
+            <>
+              <p className="text-base sm:text-lg text-gray-700 font-medium mb-2">
+                Welcome back!
+              </p>
+              <p className="text-sm text-gray-600">
+                {codePreview
+                  ? `Sign in to join ${codePreview.location}. You don't need to enter the code again.`
+                  : 'Sign in to see your contests. No join code needed if you already joined one.'}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-base sm:text-lg text-gray-700 font-medium mb-2">
+                🎯 Ready to play? Enter your contest code to get started.
+              </p>
+              <p className="text-sm text-gray-600">
+                {joinCode.trim().length === 4 && codePreview
+                  ? `Join ${codePreview.location} — log in or create an account on the next screen.`
+                  : 'Upload, rank, and vote on amazing vacation photos'}
+              </p>
+            </>
+          )}
+
           <div className="flex items-center justify-center gap-4 mt-4 text-xs sm:text-sm text-gray-600">
             <div className="flex items-center gap-1">
               <span>📸</span>
@@ -642,6 +661,88 @@ function HomeContent() {
           </div>
         </div>
 
+        {isReturningUser ? (
+          <>
+            {codePreview && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 text-sm text-center">
+                Contest ready: <strong>{codePreview.location}</strong>
+                {' · '}
+                {new Date(codePreview.date + '-01').toLocaleDateString('en-US', {
+                  month: 'long',
+                  year: 'numeric',
+                })}
+              </div>
+            )}
+
+            <Link
+              href="/login"
+              className="block w-full text-center bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white py-3 sm:py-4 rounded-lg hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 transition-all font-bold text-base sm:text-lg touch-manipulation min-h-[44px] shadow-lg hover:shadow-xl leading-[44px] sm:leading-normal"
+            >
+              Log in
+            </Link>
+
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              {!showJoinCodeForm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowJoinCodeForm(true)}
+                  className="w-full text-sm text-blue-700 font-medium hover:text-blue-900 min-h-[44px]"
+                >
+                  Joining a new contest? Enter a code
+                </button>
+              ) : (
+                <form onSubmit={handleContinueWithCode}>
+                  <h2 className="text-base font-semibold text-gray-900 mb-1 text-center">
+                    Join a different contest
+                  </h2>
+                  <p className="text-sm text-gray-600 mb-3 text-center">
+                    Enter a new 4-character code, then sign in.
+                  </p>
+                  <label htmlFor="returning-join-code" className="sr-only">
+                    Contest code
+                  </label>
+                  <input
+                    id="returning-join-code"
+                    type="text"
+                    value={joinCode}
+                    onChange={(e) => {
+                      const next = e.target.value.toUpperCase();
+                      setJoinCode(next);
+                      if (next.trim()) {
+                        setPendingJoinCode(next.trim());
+                      } else {
+                        clearPendingJoinCode();
+                      }
+                    }}
+                    placeholder="ABCD"
+                    maxLength={4}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center text-xl font-mono tracking-[0.25em] text-gray-900 font-bold"
+                    disabled={loading}
+                    inputMode="text"
+                    autoComplete="off"
+                  />
+                  {codeLookupError && joinCode.trim().length === 4 && (
+                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm text-center">
+                      {codeLookupError}
+                    </div>
+                  )}
+                  {error && (
+                    <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs sm:text-sm">
+                      {error}
+                    </div>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={loading || joinCode.trim().length !== 4}
+                    className="w-full mt-3 bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 font-medium text-sm min-h-[44px] disabled:opacity-50"
+                  >
+                    {loading ? 'Checking code...' : 'Continue to log in'}
+                  </button>
+                </form>
+              )}
+            </div>
+          </>
+        ) : (
         <form onSubmit={handleContinueWithCode}>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-1 text-center">
             Have a 4 digit contest code?
@@ -703,20 +804,25 @@ function HomeContent() {
             {loading ? 'Checking code...' : 'Continue'}
           </button>
         </form>
+        )}
 
         <div className="mt-6 pt-6 border-t border-gray-200 text-center space-y-3">
-          <p className="text-sm text-gray-600">Already have an account?</p>
-          <Link
-            href="/login"
-            className="inline-block w-full py-2.5 rounded-lg border-2 border-blue-200 text-blue-700 font-medium hover:bg-blue-50 transition-colors min-h-[44px] leading-[44px]"
-          >
-            Log in
-          </Link>
+          {!isReturningUser && (
+            <>
+              <p className="text-sm text-gray-600">Already have an account?</p>
+              <Link
+                href="/login"
+                className="inline-block w-full py-2.5 rounded-lg border-2 border-blue-200 text-blue-700 font-medium hover:bg-blue-50 transition-colors min-h-[44px] leading-[44px]"
+              >
+                Log in
+              </Link>
+            </>
+          )}
           <Link
             href="/login?register=1"
             className="block text-sm text-blue-600 hover:text-blue-800 touch-manipulation min-h-[44px]"
           >
-            Don&apos;t have an account? Create one
+            {isReturningUser ? 'Need a new account? Create one' : "Don't have an account? Create one"}
           </Link>
           <Link
             href="/admin"

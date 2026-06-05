@@ -7,7 +7,7 @@ import {
   getContest,
   getParticipantByUserId,
   getPhotosByParticipant,
-  getPhotosByParticipantAndCategory,
+  getContestVotingData,
   addPhoto,
   updatePhoto,
   deletePhoto,
@@ -15,7 +15,6 @@ import {
   hasVoted,
   getVotesByCategory,
   addVote,
-  getVoteByVoterAndCategory,
   getUser,
 } from '@/lib/store';
 import { Contest, Participant, Photo, Category } from '@/types';
@@ -31,6 +30,8 @@ import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { PageLoader } from '@/components/PageLoader';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { VotingPhotoGallery } from '@/components/VotingPhotoGallery';
+import { compressImageForUpload } from '@/lib/compress-image';
+import { getPhotoImageUrl } from '@/lib/photo-image';
 import { ContestResultsDisplay } from '@/components/ContestResultsDisplay';
 import { useLoadingAction } from '@/lib/use-loading-action';
 import { clearStoredUserId, getStoredUserId } from '@/lib/auth-session';
@@ -107,12 +108,7 @@ export default function ContestPage() {
     e.target.value = '';
 
     await run('Uploading photo...', async () => {
-      const photoUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = () => reject(new Error('Failed to read photo'));
-        reader.readAsDataURL(file);
-      });
+      const { dataUrl: photoUrl, fileName } = await compressImageForUpload(file);
 
       try {
         const newPhoto = await addPhoto({
@@ -120,7 +116,7 @@ export default function ContestPage() {
           categoryId,
           participantId: participant.id,
           url: photoUrl,
-          fileName: file.name,
+          fileName,
           submitted: false,
         });
         setPhotos((prev) => [...prev, newPhoto]);
@@ -703,41 +699,27 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
   const { loadingMessage, isLoading, run } = useLoadingAction();
 
   useEffect(() => {
-    const loadSubmittedPhotos = async () => {
-      const submitted: Photo[] = [];
-      for (const category of contest.categories) {
-        for (const p of contest.participants) {
-          const photos = await getPhotosByParticipantAndCategory(p.id, category.id);
-          const submittedPhoto = photos.find(ph => ph.submitted);
-          if (submittedPhoto) {
-            submitted.push(submittedPhoto);
-          }
-        }
-      }
+    const loadData = async () => {
+      const { photos, votesByCategory } = await getContestVotingData(contest.id, participant.id);
+
       const byCategory: Record<string, Photo[]> = {};
       for (const category of contest.categories) {
-        const categoryPhotos = submitted.filter((p) => p.categoryId === category.id);
-        byCategory[category.id] = shufflePhotos(categoryPhotos);
+        const categoryPhotos = photos.filter((photo) => photo.categoryId === category.id);
+        byCategory[category.id] = shufflePhotos(
+          categoryPhotos.map((photo) => ({
+            ...photo,
+            url: photo.url || getPhotoImageUrl(photo.id),
+          }))
+        );
       }
+
       setPhotosByCategory(byCategory);
-    };
-
-    const loadVotes = async () => {
-      const votes: Record<string, string | undefined> = {};
-      for (const category of contest.categories) {
-        const existingVote = await getVoteByVoterAndCategory(participant.id, category.id);
-        votes[category.id] = existingVote?.photoId;
-      }
-      setSelectedVotes(votes);
-    };
-
-    const loadData = async () => {
-      await Promise.all([loadSubmittedPhotos(), loadVotes()]);
+      setSelectedVotes(votesByCategory);
       setIsPageLoading(false);
     };
 
     void loadData();
-  }, [contest, participant]);
+  }, [contest.id, contest.categories, participant.id]);
 
   const getPhotosForCategory = (categoryId: string): Photo[] => {
     return photosByCategory[categoryId] ?? [];
@@ -853,9 +835,11 @@ function VotingView({ contest, participant }: { contest: Contest; participant: P
                             aria-label={`View photo ${photoIndex + 1} in gallery`}
                           >
                             <img
-                              src={photo.url}
+                              src={getPhotoImageUrl(photo.id)}
                               alt={`Photo for ${category.name}`}
                               className="w-full h-full object-cover"
+                              loading="lazy"
+                              decoding="async"
                             />
                           </button>
                           {isSelected && (

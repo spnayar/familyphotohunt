@@ -205,6 +205,16 @@ export async function getContestsCreatedByUser(userId: string): Promise<Contest[
   }
 }
 
+export async function getContestVotingData(
+  contestId: string,
+  voterId: string
+): Promise<{
+  photos: Photo[];
+  votesByCategory: Record<string, string>;
+}> {
+  return apiCall(`/contests/${contestId}/voting-data?voterId=${encodeURIComponent(voterId)}`);
+}
+
 // Photo operations
 export async function addPhoto(photo: Omit<Photo, 'id' | 'createdAt'>): Promise<Photo> {
   return apiCall<Photo>('/photos', {

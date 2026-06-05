@@ -16,9 +16,6 @@ export async function GET(request: NextRequest) {
 
     const votes = await prisma.vote.findMany({
       where,
-      include: {
-        photo: true,
-      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -59,9 +56,6 @@ export async function POST(request: NextRequest) {
         voterId,
         photoId,
         rank: 1,
-      },
-      include: {
-        photo: true,
       },
     });
 
