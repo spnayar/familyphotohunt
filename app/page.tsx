@@ -128,7 +128,7 @@ function HomeContent() {
         }),
       ]);
       console.log('Loaded contests - joined:', joinedContests?.length || 0, 'created:', created?.length || 0);
-      setUserContests((joinedContests || []).filter((contest) => contest.creatorId !== uid));
+      setUserContests(joinedContests || []);
       setCreatedContests(created || []);
     } catch (error) {
       console.error('Error loading contests:', error);
