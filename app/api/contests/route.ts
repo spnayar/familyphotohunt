@@ -57,16 +57,34 @@ export async function POST(request: NextRequest) {
       attempts++;
     }
 
+    const creator = creatorId
+      ? await prisma.user.findUnique({
+          where: { id: creatorId },
+          select: { id: true, name: true, email: true },
+        })
+      : null;
+
     const contest = await prisma.contest.create({
       data: {
         location,
         date,
         status,
         joinCode,
-        creatorId: creatorId || null,
+        creatorId: creator?.id ?? null,
         categories: {
           create: [],
         },
+        ...(creator
+          ? {
+              participants: {
+                create: {
+                  userId: creator.id,
+                  name: creator.name,
+                  email: creator.email,
+                },
+              },
+            }
+          : {}),
       },
       include: {
         categories: true,

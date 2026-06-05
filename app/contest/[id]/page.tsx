@@ -6,6 +6,7 @@ import Link from 'next/link';
 import {
   getContest,
   getParticipantByUserId,
+  deleteParticipant,
   getPhotosByParticipant,
   getContestVotingData,
   addPhoto,
@@ -36,6 +37,7 @@ import { ContestResultsDisplay } from '@/components/ContestResultsDisplay';
 import { useLoadingAction } from '@/lib/use-loading-action';
 import { clearStoredUserId, getStoredUserId } from '@/lib/auth-session';
 import { touchUserActivity } from '@/lib/user-activity';
+import { LeaveContestDialog } from '@/components/LeaveContestDialog';
 
 export default function ContestPage() {
   const params = useParams();
@@ -52,6 +54,8 @@ export default function ContestPage() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [readyToSubmit, setReadyToSubmit] = useState(false);
   const [selectedPhotoForView, setSelectedPhotoForView] = useState<Photo | null>(null);
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
+  const [isLeavingContest, setIsLeavingContest] = useState(false);
 
   useEffect(() => {
     // Check if user is logged in
@@ -240,6 +244,39 @@ export default function ContestPage() {
     router.push('/');
   };
 
+  const isOrganizer = contest?.creatorId === getStoredUserId();
+
+  const handleLeaveContest = async () => {
+    if (!participant) return;
+
+    setIsLeavingContest(true);
+    try {
+      const success = await deleteParticipant(contestId, participant.id);
+      if (success) {
+        setShowLeaveDialog(false);
+        router.push('/');
+        return;
+      }
+      alert('Could not leave the contest. Please try again.');
+    } finally {
+      setIsLeavingContest(false);
+    }
+  };
+
+  const leaveDialog = (
+    <LeaveContestDialog
+      open={showLeaveDialog}
+      contestLocation={contest?.location ?? 'this contest'}
+      isOrganizer={isOrganizer}
+      hasPhotos={photos.length > 0}
+      onClose={() => {
+        if (!isLeavingContest) setShowLeaveDialog(false);
+      }}
+      onConfirm={handleLeaveContest}
+      isLeaving={isLeavingContest}
+    />
+  );
+
   const UserAvatar = () => (
     <div className="relative">
       <div className="absolute top-4 right-4 z-10">
@@ -291,6 +328,24 @@ export default function ContestPage() {
                 >
                   Help guide
                 </Link>
+                {isOrganizer && (
+                  <Link
+                    href={`/admin/contest/${contestId}`}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    onClick={() => setShowUserMenu(false)}
+                  >
+                    Admin page
+                  </Link>
+                )}
+                <button
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    setShowLeaveDialog(true);
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors border-t border-gray-200"
+                >
+                  Leave contest
+                </button>
                 <button
                   onClick={handleLogout}
                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors border-t border-gray-200"
@@ -314,6 +369,7 @@ export default function ContestPage() {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
         <UserAvatar />
         <VotingView contest={contest} participant={participant} />
+        {leaveDialog}
       </div>
     );
   }
@@ -323,6 +379,7 @@ export default function ContestPage() {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
         <UserAvatar />
         <ContestResultsView contest={contest} participant={participant} />
+        {leaveDialog}
       </div>
     );
   }
@@ -331,6 +388,7 @@ export default function ContestPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <LoadingOverlay show={isLoading} message={loadingMessage ?? undefined} />
       <UserAvatar />
+      {leaveDialog}
 
       <div className="container mx-auto px-4 py-4 sm:py-8">
         <div className="max-w-6xl mx-auto">
@@ -347,15 +405,30 @@ export default function ContestPage() {
             <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-2">Categories</h2>
             <p className="text-sm sm:text-base text-gray-600 mb-4">
               {isSetup
-                ? 'The organizer is preparing this contest. Photo uploads will open when the contest moves to Open Photo Collection.'
+                ? isOrganizer
+                  ? 'This contest is still being set up. Finish categories on the admin page, then move to Open Photo Collection when you\'re ready for uploads.'
+                  : 'The organizer is preparing this contest. Photo uploads will open when the contest moves to Open Photo Collection.'
                 : 'Upload photos for each category, rank them with the arrows, then toggle "Ready to Submit" when done. You can submit even if some categories have no photo — you\'ll be asked to confirm first.'}
             </p>
 
             {isSetup && (
               <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4 mb-6">
-                <p className="text-sm text-yellow-800 text-center font-medium">
+                <p className="text-sm text-yellow-800 text-center font-medium mb-1">
                   Contest stage: {getContestStageLabel(contest.status)}
                 </p>
+                {isOrganizer ? (
+                  <p className="text-sm text-yellow-800 text-center">
+                    You&apos;re already in this contest as a participant — no join code needed.{' '}
+                    <Link href={`/admin/contest/${contestId}`} className="font-semibold underline">
+                      Go to admin page
+                    </Link>{' '}
+                    to finish setup.
+                  </p>
+                ) : (
+                  <p className="text-sm text-yellow-800 text-center">
+                    Check back when photo collection opens.
+                  </p>
+                )}
               </div>
             )}
             

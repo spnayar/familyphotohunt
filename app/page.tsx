@@ -128,7 +128,7 @@ function HomeContent() {
         }),
       ]);
       console.log('Loaded contests - joined:', joinedContests?.length || 0, 'created:', created?.length || 0);
-      setUserContests(joinedContests || []);
+      setUserContests((joinedContests || []).filter((contest) => contest.creatorId !== uid));
       setCreatedContests(created || []);
     } catch (error) {
       console.error('Error loading contests:', error);
@@ -463,33 +463,46 @@ function HomeContent() {
                         const stage = getContestStageInfo(contest.status);
 
                         return (
-                        <button
+                        <div
                           key={contest.id}
-                          onClick={() => router.push(`/admin/contest/${contest.id}`)}
-                          className="w-full text-left p-4 sm:p-5 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border border-gray-200 hover:border-green-300 active:scale-98 touch-manipulation"
+                          className="bg-white rounded-lg shadow-md border border-gray-200 hover:border-green-300 transition-shadow overflow-hidden"
                         >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1">
-                              <div className="font-semibold text-base sm:text-lg text-gray-900 mb-1">{contest.location}</div>
-                              <div className="text-xs sm:text-sm text-gray-600 mb-2">
-                                {new Date(contest.date + '-01').toLocaleDateString('en-US', {
-                                  month: 'long',
-                                  year: 'numeric',
-                                })}
-                              </div>
-                              <div className="mb-2">
-                                <span className={`inline-block px-2.5 py-1 rounded text-xs font-semibold ${stage.badgeClasses}`}>
-                                  {stage.label}
-                                </span>
-                              </div>
-                              {canShowJoinCode(contest.status) && (
-                                <div className="text-xs text-gray-500">
-                                  Join Code: <span className="font-mono font-bold">{contest.joinCode}</span>
+                          <button
+                            onClick={() => router.push(`/admin/contest/${contest.id}`)}
+                            className="w-full text-left p-4 sm:p-5 hover:bg-gray-50 active:scale-98 touch-manipulation"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1">
+                                <div className="font-semibold text-base sm:text-lg text-gray-900 mb-1">{contest.location}</div>
+                                <div className="text-xs sm:text-sm text-gray-600 mb-2">
+                                  {new Date(contest.date + '-01').toLocaleDateString('en-US', {
+                                    month: 'long',
+                                    year: 'numeric',
+                                  })}
                                 </div>
-                              )}
+                                <div className="mb-2">
+                                  <span className={`inline-block px-2.5 py-1 rounded text-xs font-semibold ${stage.badgeClasses}`}>
+                                    {stage.label}
+                                  </span>
+                                </div>
+                                {canShowJoinCode(contest.status) && (
+                                  <div className="text-xs text-gray-500">
+                                    Join Code: <span className="font-mono font-bold">{contest.joinCode}</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
+                          </button>
+                          <div className="border-t border-gray-100 px-4 py-2.5 sm:px-5 bg-gray-50">
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/contest/${contest.id}`)}
+                              className="text-sm font-medium text-indigo-700 hover:text-indigo-900 touch-manipulation min-h-[36px]"
+                            >
+                              View as participant →
+                            </button>
                           </div>
-                        </button>
+                        </div>
                         );
                       })}
                     </div>

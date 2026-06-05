@@ -286,6 +286,12 @@ export default function ContestAdminPage() {
                 <Link href="/admin" className="text-blue-600 hover:text-blue-800 active:text-blue-900 text-sm sm:text-base touch-manipulation min-h-[44px] flex items-center">
                   ← Back to Admin
                 </Link>
+                <Link
+                  href={`/contest/${contestId}`}
+                  className="text-indigo-600 hover:text-indigo-800 active:text-indigo-900 text-sm sm:text-base touch-manipulation min-h-[44px] flex items-center"
+                >
+                  View as participant
+                </Link>
                 <Link href="/help/admin" className="text-gray-600 hover:text-gray-900 text-sm sm:text-base touch-manipulation min-h-[44px] flex items-center">
                   Help guide
                 </Link>
@@ -346,7 +352,12 @@ export default function ContestAdminPage() {
 
             {normalizeContestStatus(contest.status) === 'setup' && (
               <p className="mt-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-                Add categories, then move to <strong>Photo Collection</strong> to reveal the join code and let participants join.
+                Add categories, then move to <strong>Photo Collection</strong> to reveal the join code and let
+                others join. You&apos;re already added as a participant — use{' '}
+                <Link href={`/contest/${contestId}`} className="font-semibold text-blue-700 underline">
+                  View as participant
+                </Link>{' '}
+                to preview the contest while you finish setup.
               </p>
             )}
             {normalizeContestStatus(contest.status) === 'collection' && (
