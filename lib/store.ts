@@ -215,6 +215,13 @@ export async function getContestVotingData(
   return apiCall(`/contests/${contestId}/voting-data?voterId=${encodeURIComponent(voterId)}`);
 }
 
+export async function getContestResultsData(contestId: string): Promise<{
+  photos: Omit<Photo, 'url'>[];
+  votes: Array<{ categoryId: string; photoId: string }>;
+}> {
+  return apiCall(`/contests/${contestId}/results-data`);
+}
+
 // Photo operations
 export async function addPhoto(photo: Omit<Photo, 'id' | 'createdAt'>): Promise<Photo> {
   return apiCall<Photo>('/photos', {

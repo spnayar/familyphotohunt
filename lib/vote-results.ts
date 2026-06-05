@@ -1,11 +1,17 @@
 import { Vote } from '@/types';
 
-export function countVotesByPhoto(votes: Vote[]): Record<string, number> {
+export function countVotesByPhotoId(
+  votes: Array<{ photoId: string }>
+): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const vote of votes) {
     counts[vote.photoId] = (counts[vote.photoId] || 0) + 1;
   }
   return counts;
+}
+
+export function countVotesByPhoto(votes: Vote[]): Record<string, number> {
+  return countVotesByPhotoId(votes);
 }
 
 export function getTopVotedPhotoIds(voteCounts: Record<string, number>): {

@@ -7,6 +7,7 @@ import {
   buildPhotoDownloadItem,
   getContestPhotosDownloadUrl,
 } from '@/lib/photo-download';
+import { getPhotoImageUrl } from '@/lib/photo-image';
 import { Contest, Photo } from '@/types';
 import { PageLoader } from '@/components/PageLoader';
 import { PhotoDownloadButton } from '@/components/PhotoDownloadButton';
@@ -171,9 +172,11 @@ export function ContestResultsDisplay({
                             <>
                               <div className="relative w-full max-w-2xl">
                                 <img
-                                  src={winnerPhoto.url}
+                                  src={getPhotoImageUrl(winnerPhoto.id)}
                                   alt={`Winner for ${category.name}`}
                                   className="w-full h-auto rounded-lg"
+                                  loading="lazy"
+                                  decoding="async"
                                 />
                               </div>
                               <PhotoDownloadButton
@@ -215,9 +218,11 @@ export function ContestResultsDisplay({
                           }`}
                         >
                           <img
-                            src={photo.url}
+                            src={getPhotoImageUrl(photo.id)}
                             alt={`Photo by ${submitter?.name || 'Unknown'} for ${category.name}`}
-                            className="w-full h-48 object-cover"
+                            className="w-full h-48 object-cover bg-gray-100"
+                            loading="lazy"
+                            decoding="async"
                           />
                           <div className="p-3 bg-gray-50">
                             <div className="text-xs font-semibold text-gray-500 mb-1">#{index + 1}</div>
