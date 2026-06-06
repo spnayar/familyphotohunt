@@ -62,40 +62,54 @@ export function ContestStageStepper({
   const currentIndex = CONTEST_STAGES.findIndex((s) => s.value === current);
 
   return (
-    <div className="w-full overflow-x-auto">
-      <div
-        className="mx-auto min-w-[560px] max-w-3xl px-2 py-2"
-        role="group"
-        aria-label="Contest stage"
-      >
-        {/* Numbered progress track */}
-        <div className="flex items-center">
-          {CONTEST_STAGES.map((stage, index) => {
-            const isComplete = index < currentIndex;
-            const isCurrent = index === currentIndex;
-            const isLast = index === CONTEST_STAGES.length - 1;
+    <div className="w-full" role="group" aria-label="Contest stage">
+      <p className="mb-3 text-xs text-gray-500 sm:hidden">
+        Tap a stage to set where the contest is. Current stage is highlighted.
+      </p>
 
-            return (
-              <div key={`num-${stage.value}`} className="flex flex-1 items-center">
-                {index > 0 && (
-                  <div
-                    className={`h-0 flex-1 border-t-2 border-dotted ${
-                      isComplete ? 'border-blue-400' : 'border-gray-300'
-                    }`}
-                    aria-hidden
-                  />
-                )}
+      <ol className="flex flex-col gap-0">
+        {CONTEST_STAGES.map((stage, index) => {
+          const isComplete = index < currentIndex;
+          const isCurrent = index === currentIndex;
+          const isLast = index === CONTEST_STAGES.length - 1;
+          const Icon = STAGE_ICONS[stage.value];
+
+          return (
+            <li key={stage.value} className="relative">
+              {!isLast && (
                 <div
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold shadow-sm ${
+                  className={`absolute left-[1.375rem] top-[3.25rem] bottom-0 w-0.5 ${
+                    isComplete ? 'bg-blue-300' : 'bg-gray-200'
+                  }`}
+                  aria-hidden
+                />
+              )}
+
+              <button
+                type="button"
+                onClick={() => onStageSelect(stage.value)}
+                aria-current={isCurrent ? 'step' : undefined}
+                aria-label={`Set contest to ${stage.label}${isCurrent ? ' (current stage)' : ''}`}
+                title={stage.description}
+                className={`group relative flex w-full items-center gap-3 rounded-xl border-2 px-3 py-3 text-left transition-all touch-manipulation min-h-[56px] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 active:scale-[0.99] ${
+                  isCurrent
+                    ? 'border-blue-500 bg-blue-50 shadow-md shadow-blue-100'
+                    : isComplete
+                      ? 'border-blue-200 bg-white hover:border-blue-300 hover:bg-blue-50/50'
+                      : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                } ${index > 0 ? 'mt-2' : ''}`}
+              >
+                <div
+                  className={`relative z-10 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 ${
                     isCurrent
-                      ? 'border-blue-500 bg-blue-500 text-white shadow-blue-200'
+                      ? 'border-blue-500 bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-sm'
                       : isComplete
-                        ? 'border-blue-400 bg-blue-50 text-blue-700'
-                        : 'border-gray-300 bg-white text-gray-500'
+                        ? 'border-blue-400 bg-blue-100 text-blue-700'
+                        : 'border-gray-300 bg-gray-50 text-gray-400 group-hover:border-gray-400 group-hover:text-gray-600'
                   }`}
                 >
-                  {isComplete ? (
-                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                  {isComplete && !isCurrent ? (
+                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
                       <path
                         fillRule="evenodd"
                         d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
@@ -103,77 +117,53 @@ export function ContestStageStepper({
                       />
                     </svg>
                   ) : (
-                    index + 1
+                    <Icon className="h-5 w-5" />
                   )}
                 </div>
-                {!isLast && (
-                  <div
-                    className={`h-0 flex-1 border-t-2 border-dotted ${
-                      index < currentIndex ? 'border-blue-400' : 'border-gray-300'
-                    }`}
-                    aria-hidden
-                  />
-                )}
-              </div>
-            );
-          })}
-        </div>
 
-        {/* Stage icons and labels */}
-        <div className="mt-1 flex">
-          {CONTEST_STAGES.map((stage, index) => {
-            const isComplete = index < currentIndex;
-            const isCurrent = index === currentIndex;
-            const Icon = STAGE_ICONS[stage.value];
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`text-sm font-semibold sm:text-base ${
+                        isCurrent ? 'text-blue-900' : isComplete ? 'text-blue-800' : 'text-gray-800'
+                      }`}
+                    >
+                      {stage.label}
+                    </span>
+                    {isCurrent && (
+                      <span className="inline-flex items-center rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                        Current
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-xs text-gray-500 line-clamp-2 sm:text-sm">
+                    {stage.description}
+                  </p>
+                </div>
 
-            return (
-              <div key={stage.value} className="flex flex-1 flex-col items-center px-1">
                 <div
-                  className={`my-1 h-5 w-0 border-l-2 border-dotted ${
-                    isComplete || isCurrent ? 'border-blue-400' : 'border-gray-300'
+                  className={`shrink-0 text-xs font-medium ${
+                    isCurrent ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'
                   }`}
                   aria-hidden
-                />
-
-                <button
-                  type="button"
-                  onClick={() => onStageSelect(stage.value)}
-                  aria-current={isCurrent ? 'step' : undefined}
-                  aria-label={`${stage.label}${isCurrent ? ' (current)' : ''}`}
-                  title={stage.description}
-                  className={`group flex flex-col items-center touch-manipulation transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
-                    isCurrent ? 'scale-105' : 'hover:scale-105'
-                  }`}
                 >
-                  <div
-                    className={`flex h-16 w-16 items-center justify-center transition-all sm:h-[4.5rem] sm:w-[4.5rem] ${
-                      isCurrent
-                        ? 'rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/40 ring-4 ring-blue-100'
-                        : isComplete
-                          ? 'rounded-full border-2 border-blue-300 bg-blue-50 text-blue-600 shadow-sm group-hover:border-blue-400 group-hover:shadow-md'
-                          : 'rounded-full border-2 border-gray-200 bg-white text-gray-400 shadow-sm group-hover:border-gray-300 group-hover:text-gray-600 group-hover:shadow-md'
-                    }`}
-                  >
-                    <Icon className="h-7 w-7 sm:h-8 sm:w-8" />
-                  </div>
-
-                  <span
-                    className={`mt-2 max-w-[5.5rem] text-center text-xs font-semibold leading-tight sm:text-sm ${
-                      isCurrent
-                        ? 'text-blue-700'
-                        : isComplete
-                          ? 'text-blue-600'
-                          : 'text-gray-500 group-hover:text-gray-700'
-                    }`}
-                  >
-                    {stage.shortLabel}
-                  </span>
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+                  {isCurrent ? (
+                    <span className="hidden sm:inline">Active</span>
+                  ) : (
+                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path
+                        fillRule="evenodd"
+                        d="M7.21 14.77a.75.75 0 01.02-1.06L10.94 10 7.23 6.29a.75.75 0 111.06-1.06l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  )}
+                </div>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }

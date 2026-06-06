@@ -337,7 +337,7 @@ export default function ContestAdminPage() {
               <div>
                 <p className="text-base font-semibold text-gray-900 sm:text-lg">Contest Stage</p>
                 <p className="text-sm text-gray-600">
-                  Tap a stage to move the contest forward or back.
+                  Tap a stage below to change where the contest is.
                 </p>
               </div>
               <span className="inline-flex w-fit items-center rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-800">

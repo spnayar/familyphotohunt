@@ -10,6 +10,7 @@ import { PageLoader } from '@/components/PageLoader';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { DeleteContestDialog } from '@/components/DeleteContestDialog';
+import { ContactSupportLink } from '@/components/ContactSupportLink';
 import { useLoadingAction } from '@/lib/use-loading-action';
 import { clearStoredUserId, getStoredUserId } from '@/lib/auth-session';
 import { touchUserActivity } from '@/lib/user-activity';
@@ -128,6 +129,9 @@ export default function AdminPage() {
               >
                 Help guide
               </Link>
+              <ContactSupportLink className="text-gray-600 hover:text-gray-900 text-sm sm:text-base touch-manipulation min-h-[44px] flex items-center no-underline hover:underline">
+                Contact
+              </ContactSupportLink>
               <button
                 onClick={handleLogout}
                 className="text-red-600 hover:text-red-800 text-sm sm:text-base touch-manipulation min-h-[44px] px-2"

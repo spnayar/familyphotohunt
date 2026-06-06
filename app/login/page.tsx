@@ -19,6 +19,8 @@ import { touchUserActivity } from '@/lib/user-activity';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { PageLoader } from '@/components/PageLoader';
 import { PasswordInput } from '@/components/PasswordInput';
+import { PhotoHuntLogo } from '@/components/PhotoHuntLogo';
+import { ContactSupportLink } from '@/components/ContactSupportLink';
 
 function LoginContent() {
   const router = useRouter();
@@ -191,16 +193,14 @@ function LoginContent() {
 
       <div className="max-w-md w-full bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-6 sm:p-8 relative z-10 border-2 border-white/50">
         <div className="text-center mb-6">
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <span className="text-4xl">📷</span>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-              {isRegistering
-                ? 'Create your account'
-                : isReturningUser
-                  ? 'Welcome back'
-                  : 'Log in'}
-            </h1>
-          </div>
+          <PhotoHuntLogo showTagline={false} className="mb-4" />
+          <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-2">
+            {isRegistering
+              ? 'Create your account'
+              : isReturningUser
+                ? 'Welcome back'
+                : 'Log in'}
+          </h2>
           {codePreview ? (
             <p className="text-sm text-gray-600">
               {isReturningUser ? (
@@ -363,6 +363,9 @@ function LoginContent() {
           <Link href="/help/participants" className="block text-sm text-gray-600 hover:text-blue-700">
             Help guide for participants
           </Link>
+          <p className="text-sm text-gray-600">
+            Questions? <ContactSupportLink>Contact us</ContactSupportLink>
+          </p>
         </div>
       </div>
     </div>

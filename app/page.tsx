@@ -11,6 +11,8 @@ import { getContestCoverImage } from '@/lib/contest-cover-image';
 import { canShowJoinCode, getContestStageInfo } from '@/lib/contest-status';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { PageLoader } from '@/components/PageLoader';
+import { PhotoHuntFeatureRow, PhotoHuntLogo } from '@/components/PhotoHuntLogo';
+import { ContactSupportLink } from '@/components/ContactSupportLink';
 
 function HomeContent() {
   const router = useRouter();
@@ -523,6 +525,9 @@ function HomeContent() {
               >
                 Create or manage a contest
               </Link>
+              <p className="mt-4 text-sm text-gray-500">
+                Questions? <ContactSupportLink className="text-gray-600 hover:text-blue-800 underline underline-offset-2">Contact us</ContactSupportLink>
+              </p>
             </div>
 
           </div>
@@ -536,7 +541,7 @@ function HomeContent() {
       <LoadingOverlay show={loading} message={loadingMessage} />
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden">
-        {/* Floating vacation photos of famous landmarks */}
+        {/* Floating landmark photos */}
         <div 
           className="absolute top-20 left-10 w-24 h-24 sm:w-32 sm:h-32 rounded-lg shadow-2xl opacity-30 hover:opacity-50 transition-opacity animate-bounce"
           style={{ 
@@ -626,13 +631,7 @@ function HomeContent() {
 
       <div className="max-w-md w-full bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-6 sm:p-8 relative z-10 border-2 border-white/50">
         <div className="text-center mb-6 sm:mb-8">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <span className="text-5xl sm:text-6xl">📷</span>
-            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent" style={{ fontFamily: 'Georgia, serif' }}>
-              Family Photo Hunt
-            </h1>
-            <span className="text-5xl sm:text-6xl">🏆</span>
-          </div>
+          <PhotoHuntLogo className="mb-5" />
 
           {isReturningUser ? (
             <>
@@ -648,30 +647,17 @@ function HomeContent() {
           ) : (
             <>
               <p className="text-base sm:text-lg text-gray-700 font-medium mb-2">
-                🎯 Ready to play? Enter your contest code to get started.
+                Ready to play? Enter your contest code to get started.
               </p>
               <p className="text-sm text-gray-600">
                 {joinCode.trim().length === 4 && codePreview
                   ? `Join ${codePreview.location} — log in or create an account on the next screen.`
-                  : 'Upload, rank, and vote on amazing vacation photos'}
+                  : 'Upload, rank, and vote on the best photos from your group.'}
               </p>
             </>
           )}
 
-          <div className="flex items-center justify-center gap-4 mt-4 text-xs sm:text-sm text-gray-600">
-            <div className="flex items-center gap-1">
-              <span>📸</span>
-              <span>Upload</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span>⭐</span>
-              <span>Rank</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span>🏆</span>
-              <span>Win</span>
-            </div>
-          </div>
+          <PhotoHuntFeatureRow className="mt-5" />
         </div>
 
         {isReturningUser ? (
@@ -849,6 +835,9 @@ function HomeContent() {
           >
             Help guide
           </Link>
+          <p className="pt-2 text-sm text-gray-500">
+            Questions? <ContactSupportLink className="text-gray-500 hover:text-gray-700">Contact us</ContactSupportLink>
+          </p>
         </div>
 
       </div>
@@ -857,6 +846,10 @@ function HomeContent() {
         <Link href="/help" className="hover:text-white underline underline-offset-2">
           Help
         </Link>
+        {' · '}
+        <ContactSupportLink className="text-white/80 hover:text-white underline underline-offset-2">
+          Contact
+        </ContactSupportLink>
         {' · '}
         Version 1.1
       </p>

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ContactSupportBlock } from '@/components/ContactSupportLink';
 
 export default function HelpHubPage() {
   return (
@@ -49,6 +50,8 @@ export default function HelpHubPage() {
               <p className="mt-4 text-purple-600 font-medium text-sm sm:text-base">Read participant guide →</p>
             </Link>
           </div>
+
+          <ContactSupportBlock className="mt-10" />
         </div>
       </div>
     </div>

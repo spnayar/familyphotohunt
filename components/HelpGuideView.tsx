@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { HelpGuide } from '@/lib/help-content';
+import { ContactSupportBlock } from '@/components/ContactSupportLink';
 
 type HelpGuideViewProps = {
   guide: HelpGuide;
@@ -108,6 +109,8 @@ export function HelpGuideView({
               </section>
             ))}
           </div>
+
+          <ContactSupportBlock className="mt-8" />
 
           <div className="mt-8 text-center">
             <Link
