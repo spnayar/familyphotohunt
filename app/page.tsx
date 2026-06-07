@@ -11,7 +11,7 @@ import { getContestCoverImage } from '@/lib/contest-cover-image';
 import { canShowJoinCode, getContestStageInfo } from '@/lib/contest-status';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { PageLoader } from '@/components/PageLoader';
-import { PhotoHuntFeatureRow, PhotoHuntLogo } from '@/components/PhotoHuntLogo';
+import { PhotoHuntLogo } from '@/components/PhotoHuntLogo';
 import { ContactSupportLink } from '@/components/ContactSupportLink';
 
 function HomeContent() {
@@ -631,7 +631,7 @@ function HomeContent() {
 
       <div className="max-w-md w-full bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-6 sm:p-8 relative z-10 border-2 border-white/50">
         <div className="text-center mb-6 sm:mb-8">
-          <PhotoHuntLogo className="mb-5" />
+          <PhotoHuntLogo showTagline={false} className="mb-5" size="lg" />
 
           {isReturningUser ? (
             <>
@@ -652,12 +652,10 @@ function HomeContent() {
               <p className="text-sm text-gray-600">
                 {joinCode.trim().length === 4 && codePreview
                   ? `Join ${codePreview.location} — log in or create an account on the next screen.`
-                  : 'Upload, rank, and vote on the best photos from your group.'}
+                  : 'Explore, Capture, and Vote on the best photos from your group.'}
               </p>
             </>
           )}
-
-          <PhotoHuntFeatureRow className="mt-5" />
         </div>
 
         {isReturningUser ? (

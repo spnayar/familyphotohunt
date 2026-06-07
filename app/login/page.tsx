@@ -193,7 +193,7 @@ function LoginContent() {
 
       <div className="max-w-md w-full bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-6 sm:p-8 relative z-10 border-2 border-white/50">
         <div className="text-center mb-6">
-          <PhotoHuntLogo showTagline={false} className="mb-4" />
+          <PhotoHuntLogo showTagline={false} className="mb-4" size="md" />
           <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-2">
             {isRegistering
               ? 'Create your account'
